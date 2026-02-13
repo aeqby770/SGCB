@@ -18,10 +18,11 @@ variance shrinkage.
 ## Installation
 
 ```r
-# Install from source directory
-devtools::install("path/to/SGCB")
+# Install from GitHub (recommended)
+devtools::install_github("aeqby770/SGCB")
 
-# Or from command line
+# Or clone and install locally
+# git clone https://github.com/aeqby770/SGCB.git
 # R CMD INSTALL SGCB
 ```
 
@@ -272,4 +273,5 @@ If you use SGCB, please cite:
 
 ```
 SGCB: Shallow Generalized-Gamma Calibrated Bootstrap for
-Bulk RNA-seq Differential Expression Analysis (2024)
+Bulk RNA-seq Differential Expression Analysis (2025)
+https://github.com/aeqby770/SGCB
