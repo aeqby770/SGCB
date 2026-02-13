@@ -1,0 +1,5 @@
+^\.gitignore$
+^DIAGNOSIS_ablation\.md$
+^sgcb_output$
+^.*\.Rproj$
+^\.Rproj\.user$

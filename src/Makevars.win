@@ -1,0 +1,21 @@
+# =============================================================================
+# SGCB Windows build configuration
+# Enable OpenMP parallelization and advanced optimizations
+# =============================================================================
+
+# C++17 standard
+CXX_STD = CXX17
+
+# OpenMP support
+PKG_CXXFLAGS = $(SHLIB_OPENMP_CXXFLAGS) -DRCPP_PARALLEL_USE_TBB=0
+PKG_LIBS = $(SHLIB_OPENMP_CXXFLAGS) $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS)
+
+# Advanced optimization options
+# -O3: highest optimization level
+# -march=native: optimize for current CPU (note: may affect portability)
+# -ffast-math: fast math operations (trade accuracy for speed)
+# -funroll-loops: loop unrolling
+# PKG_CXXFLAGS += -O3 -funroll-loops
+
+# SIMD vectorization (SSE/AVX)
+# PKG_CXXFLAGS += -msse4.2 -mavx2

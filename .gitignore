@@ -1,0 +1,18 @@
+# Compiled code
+src/*.o
+src/*.so
+src/*.dll
+src/*.dylib
+
+# R package build artifacts
+*.tar.gz
+*.Rcheck/
+
+# IDE
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+# Output directory
+sgcb_output/
