@@ -299,26 +299,43 @@ List fit_dispersion_trend_parametric_cpp(NumericVector means, NumericVector disp
     int n_valid = valid_idx.size();
     
     // Design matrix: [1, 1/mean]
-    // Normal equations: (X'X)^{-1} X'y
-    double sum_1 = n_valid;
-    double sum_inv = 0.0, sum_inv2 = 0.0;
-    double sum_y = 0.0, sum_inv_y = 0.0;
-    
+    // Robust weighted normal equations:
+    // - winsorize 1/mean to reduce leverage from ultra-low-expression genes
+    // - weight by mean/(mean+1) to downweight near-zero means
+    std::vector<double> inv_vals(n_valid), log_disp_vals(n_valid), w_vals(n_valid);
     for (int i = 0; i < n_valid; i++) {
         int idx = valid_idx[i];
-        double inv_mean = 1.0 / (means[idx] + eps);
-        double log_disp = std::log(dispersions[idx] + eps);
-        
-        sum_inv += inv_mean;
-        sum_inv2 += inv_mean * inv_mean;
-        sum_y += log_disp;
-        sum_inv_y += inv_mean * log_disp;
+        double mu = means[idx];
+        inv_vals[i] = 1.0 / (mu + eps);
+        log_disp_vals[i] = std::log(dispersions[idx] + eps);
+        w_vals[i] = mu / (mu + 1.0);
     }
-    
-    // 2x2 matrix inversion
-    double det = sum_1 * sum_inv2 - sum_inv * sum_inv;
-    double a = (sum_inv2 * sum_y - sum_inv * sum_inv_y) / (det + eps);
-    double b = (sum_1 * sum_inv_y - sum_inv * sum_y) / (det + eps);
+
+    std::vector<double> inv_sorted(inv_vals);
+    int lo_idx = std::max(0, (int)(0.01 * n_valid));
+    int hi_idx = std::min(n_valid - 1, (int)(0.99 * n_valid));
+    std::nth_element(inv_sorted.begin(), inv_sorted.begin() + lo_idx, inv_sorted.end());
+    double inv_lo = inv_sorted[lo_idx];
+    std::nth_element(inv_sorted.begin(), inv_sorted.begin() + hi_idx, inv_sorted.end());
+    double inv_hi = inv_sorted[hi_idx];
+
+    double sum_w = 0.0, sum_wx = 0.0, sum_wx2 = 0.0;
+    double sum_wy = 0.0, sum_wxy = 0.0;
+    for (int i = 0; i < n_valid; i++) {
+        double x = std::max(inv_lo, std::min(inv_hi, inv_vals[i]));
+        double y = log_disp_vals[i];
+        double w = w_vals[i];
+        sum_w += w;
+        sum_wx += w * x;
+        sum_wx2 += w * x * x;
+        sum_wy += w * y;
+        sum_wxy += w * x * y;
+    }
+
+    // 2x2 weighted matrix inversion
+    double det = sum_w * sum_wx2 - sum_wx * sum_wx;
+    double a = (sum_wx2 * sum_wy - sum_wx * sum_wxy) / (det + eps);
+    double b = (sum_w * sum_wxy - sum_wx * sum_wy) / (det + eps);
     
     // Compute fitted values
     NumericVector fitted(n);

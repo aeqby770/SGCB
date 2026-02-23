@@ -39,7 +39,7 @@ Rcpp::NumericVector gg_loglik_vec(const Rcpp::NumericVector& x,
     const double g = pg[i];
     const double log_xi = std::log(xi);
     const double log_b = std::log(b);
-    po[i] = std::log(g) - a * log_b - fast_special::lgamma(a) +
+    po[i] = std::log(g) - g * a * log_b - fast_special::lgamma(a) +
             (g * a - 1.0) * log_xi - std::pow(xi / b, g);
   }
   return out;
@@ -70,9 +70,9 @@ Rcpp::NumericMatrix gg_grad_params(const Rcpp::NumericVector& x,
     const double ratio_g = std::pow(ratio, g);
     const double log_ratio = std::log(ratio);
     
-    grad(i, 0) = -std::log(b) - fast_special::digamma(a) + g * log_xi;
-    grad(i, 1) = -a / b + g * ratio_g / b;
-    grad(i, 2) = 1.0 / g + a * log_xi - ratio_g * log_ratio;
+    grad(i, 0) = -g * std::log(b) - fast_special::digamma(a) + g * log_xi;
+    grad(i, 1) = -g * a / b + g * ratio_g / b;
+    grad(i, 2) = 1.0 / g + a * log_ratio - ratio_g * log_ratio;
   }
   return grad;
 }
@@ -102,7 +102,7 @@ Rcpp::NumericMatrix gg_hessian_diag(Rcpp::NumericVector x,
     double log_ratio = std::log(ratio);
     double trigamma_a = fast_special::trigamma(a);
     hess(i, 0) = -trigamma_a;
-    hess(i, 1) = a / (b * b) - g * (g + 1.0) * ratio_g / (b * b);
+    hess(i, 1) = g * a / (b * b) - g * (g + 1.0) * ratio_g / (b * b);
     hess(i, 2) = -1.0 / (g * g) - ratio_g * log_ratio * log_ratio;
   }
   return hess;
@@ -265,7 +265,7 @@ Rcpp::NumericMatrix fisher_info_diag(Rcpp::NumericVector alpha,
     double g = gamma[i];
     double trigamma_a = R::trigamma(a);
     info(i, 0) = n_samples * trigamma_a;
-    info(i, 1) = n_samples * a / (b * b);
+    info(i, 1) = n_samples * a * g * g / (b * b);
     info(i, 2) = n_samples / (g * g);
   }
   return info;

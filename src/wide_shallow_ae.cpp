@@ -44,7 +44,7 @@ inline double clip(double x, double lo, double hi) {
 
 inline double gg_loglik(double x, double alpha, double beta, double gamma, double eps) {
     x = std::max(x, eps);
-    return std::log(gamma) - alpha * std::log(beta) - fast_special::lgamma(alpha) +
+    return std::log(gamma) - gamma * alpha * std::log(beta) - fast_special::lgamma(alpha) +
            (gamma * alpha - 1.0) * std::log(x) - std::pow(x / beta, gamma);
 }
 
@@ -56,9 +56,9 @@ inline void gg_grad(double x, double alpha, double beta, double gamma, double ep
     double ratio_g = std::pow(ratio, gamma);
     double log_ratio = std::log(ratio);
     
-    grad_alpha = -std::log(beta) - fast_special::digamma(alpha) + gamma * log_x;
-    grad_beta = -alpha / beta + gamma * ratio_g / beta;
-    grad_gamma = 1.0 / gamma + alpha * log_x - ratio_g * log_ratio;
+    grad_alpha = -gamma * std::log(beta) - fast_special::digamma(alpha) + gamma * log_x;
+    grad_beta = -gamma * alpha / beta + gamma * ratio_g / beta;
+    grad_gamma = 1.0 / gamma + alpha * log_ratio - ratio_g * log_ratio;
 }
 
 // -----------------------------------------------------------------------------

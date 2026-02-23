@@ -102,7 +102,7 @@ double gg_loglik_scalar(double x, double alpha, double beta, double gamma) noexc
     const double log_beta = std::log(beta);
     const double ratio_g = std::pow(xi / beta, gamma);
     
-    return std::log(gamma) - alpha * log_beta - std::lgamma(alpha) +
+    return std::log(gamma) - gamma * alpha * log_beta - std::lgamma(alpha) +
            (gamma * alpha - 1.0) * log_xi - ratio_g;
 }
 
@@ -132,7 +132,7 @@ struct GGParams {
         const double xi = x > EPS ? x : EPS;
         const double log_xi = std::log(xi);
         const double ratio_g = std::pow(xi / beta, gamma);
-        return log_gamma - alpha * log_beta - lgamma_alpha + coef * log_xi - ratio_g;
+        return log_gamma - gamma * alpha * log_beta - lgamma_alpha + coef * log_xi - ratio_g;
     }
 };
 

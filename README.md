@@ -1,19 +1,18 @@
-# SGCB: Shallow Generalized-Gamma Calibrated Bootstrap
+# SGCB: Generalized-Gamma Differential Expression for Bulk RNA-seq
 
-**SGCB** is an R package for bulk RNA-seq differential expression analysis.
-It models gene expression with the three-parameter Generalized Gamma (GG)
-distribution and uses information-geometric inference with empirical Bayes
-variance shrinkage.
+**SGCB** is an R package for two-group bulk RNA-seq differential analysis.
+It fits gene-wise three-parameter Generalized Gamma (GG) models and reports
+mean-shift and distribution-shift evidence in one result table.
 
 ## Key Features
 
-- **Generalized Gamma distribution**: Three-parameter family (alpha, beta, gamma) that subsumes Gamma and Weibull — captures distributional shape changes invisible to NB-based methods
-- **Information-geometric inference**: Natural gradient on the Fisher manifold for efficient GG parameter estimation
-- **Empirical Bayes shrinkage**: limma-style fitFDist (Smyth 2004) with mean-variance trend, plus optional GG-informed precision weighting
-- **Multi-channel testing**: Moderated t-test (DE), manifold Wald chi-squared (DD), differential variance (DV), and differential shape (DG) — combined via Cauchy combination into a single SGCB_Score
-- **LFC shrinkage**: Cauchy-prior shrinkage (apeglm-style)
-- **Calibrated bootstrap**: Optional m-out-of-n bootstrap confidence intervals
-- **OpenMP parallelization**: C++ core via Rcpp, multi-threaded
+- **GG model with three parameters** (`alpha`, `beta`, `gamma`) for location/scale/shape differences
+- **Information-geometric fitting**: natural-gradient MAP with hierarchical prior and small-sample stabilization
+- **Variance shrinkage**: TMM preprocessing + limma-style fitFDist on log2-scale pooled variance
+- **Testing outputs**: primary DE (`pvalue_t`), diagnostic channels (`pvalue_mu_wald`, `pvalue_manifold`), DD channel (`pvalue_dd` from DV + DG-gamma), and omnibus score (`SGCB_Score`)
+- **LFC shrinkage**: Cauchy prior (apeglm-style)
+- **Optional bootstrap**: calibrated confidence interval and p-value columns
+- **C++/OpenMP core** via Rcpp
 
 ## Installation
 
@@ -30,7 +29,7 @@ devtools::install_github("aeqby770/SGCB")
 
 ## Complete Runnable Example
 
-Copy-paste this into R to verify your installation works:
+Run the following code in R to verify installation and output format:
 
 ```r
 library(SGCB)
@@ -66,14 +65,15 @@ head(sig[, c("gene_id", "log2FoldChange", "log2FC_shrunk", "pvalue", "padj",
 
 ## The `sgcbDE()` Function
 
-`sgcbDE()` is the **only function you need to call**. Everything — normalization, parameter estimation, testing, multiple comparison correction, LFC shrinkage — happens inside it.
+`sgcbDE()` is the main user-facing entry point. It handles filtering,
+normalization, GG fitting, testing, multiple-testing correction, and shrinkage.
 
 ```r
 res <- sgcbDE(
   counts,              # integer count matrix (genes x samples), raw counts
   group,               # character/factor vector of length ncol(counts), exactly 2 levels
-  alpha       = 0.1,   # FDR threshold for significance
-  use_manifold_test = TRUE,   # enable manifold distance test (recommended)
+  alpha       = 0.1,   # FDR threshold used by helper print/significant filters
+  use_manifold_test = TRUE,   # report manifold channel (requires n >= 6 per group)
   bootstrap   = FALSE, # set TRUE for calibrated bootstrap CIs (slower)
   n_boot      = 200,   # number of bootstrap replicates (only if bootstrap=TRUE)
   min_count   = 10,    # gene filtering: minimum count in at least min_samples samples
@@ -93,7 +93,7 @@ group <- factor(c("WT","WT","WT","KO","KO","KO"), levels = c("WT", "KO"))
 
 **Output**: A data.frame of class `SGCBResults` with one row per gene that passes filtering. Positive `log2FoldChange` means higher in treatment.
 
-## Output Columns (43 base + 5 with bootstrap)
+## Output Columns (46 base + 5 with bootstrap)
 
 ### Which columns should I use?
 
@@ -126,11 +126,11 @@ For most users, the workflow is:
 | `pvalue` | Primary p-value (= `pvalue_t`, moderated t-test) |
 | `padj` | BH-adjusted p-value (**use this to call DE genes**) |
 
-### Omnibus SGCB_Score (combines all test channels)
+### Omnibus SGCB_Score (combines DE and DD channels)
 
 | Column | Description |
 |--------|-------------|
-| `SGCB_Score` | -log10(Cauchy-combined p). Higher = stronger multi-channel evidence |
+| `SGCB_Score` | -log10(Cauchy-combined p). Higher = stronger combined evidence from DE + DD |
 | `SGCB_Score_p` | Raw omnibus p-value |
 | `SGCB_Score_padj` | BH-adjusted omnibus p-value |
 
@@ -148,17 +148,19 @@ For most users, the workflow is:
 | Column | Description |
 |--------|-------------|
 | `pvalue_t` / `padj_t` | Moderated t-test (same as `pvalue`/`padj`) |
-| `pvalue_mu_wald` / `padj_mu_wald` | GG-based Wald test on mean parameter |
-| `pvalue_manifold` / `padj_manifold` | Manifold distance chi-squared test (NA when n < 6 per group) |
-| `dv_pvalue` / `dv_padj` | Differential variance (DV) test |
+| `pvalue_mu_wald` / `padj_mu_wald` | GG mean Wald channel (diagnostic; not used in SGCB_Score) |
+| `pvalue_manifold` / `padj_manifold` | Manifold channel (diagnostic; NA when n < 6 per group) |
+| `dv_pvalue` / `dv_padj` | Differential variability test (DV; based on log CV²) |
 | `dv_log2_var_ratio` | log2(var_treat / var_ctrl) |
+| `dv_log2_cv2_ratio` | log2(CV²_treat / CV²_ctrl) |
 | `dv_stat` | DV test statistic |
 | `dv_var_ctrl` / `dv_var_treat` | Per-group GG variance |
+| `dv_cv2_ctrl` / `dv_cv2_treat` | Per-group GG CV² |
 | `dg_alpha_pvalue` / `dg_alpha_padj` | Differential shape (alpha) test |
 | `dg_alpha_log2_ratio` / `dg_alpha_stat` | Alpha ratio and test statistic |
 | `dg_gamma_pvalue` / `dg_gamma_padj` | Differential shape (gamma) test |
 | `dg_gamma_log2_ratio` / `dg_gamma_stat` | Gamma ratio and test statistic |
-| `pvalue_dd` / `padj_dd` | Combined DD: Cauchy(manifold + DV). NA when n < 6 per group |
+| `pvalue_dd` / `padj_dd` | Combined DD: Cauchy(DV + DG-gamma) |
 
 ### Bootstrap columns (only when `bootstrap = TRUE`)
 
@@ -183,7 +185,7 @@ dd_genes <- res[!is.na(res$padj_dd) & res$padj_dd < 0.05, ]
 # Genes with significant variance changes only
 dv_genes <- res[!is.na(res$dv_padj) & res$dv_padj < 0.05, ]
 
-# --- Omnibus ranking (all channels combined) ---
+# --- Omnibus ranking (DE + DD combined) ---
 top_genes <- head(res[order(-res$SGCB_Score), ], 20)
 
 # --- Volcano plot ---
@@ -216,16 +218,16 @@ See `?SGCBConfig` for the full slot list.
 
 ## What Happens Inside `sgcbDE()`
 
-1. **Gene filtering** — removes genes with < `min_count` counts in < `min_samples` samples
-2. **Normalization** — DESeq2-style median-of-ratios (Anders & Huber 2010)
-3. **GG parameter fitting** — natural gradient + hierarchical Bayes MAP with Firth penalty (n <= 10) and gamma=1 reduction (n <= 5)
-4. **Variance shrinkage** — limma-style fitFDist with mean-variance trend (Smyth 2004)
-5. **Moderated t-test** — primary DE test (robust to model misspecification)
-6. **Manifold Wald test** — chi-squared test on Fisher-Rao distance (captures distributional shifts)
-7. **DV/DG tests** — differential variance and shape parameter tests
-8. **LFC shrinkage** — Cauchy-prior apeglm-style shrinkage
-9. **Cauchy combination** — omnibus SGCB_Score from all independent channels
-10. *(Optional)* **Calibrated bootstrap** — posterior predictive parameter perturbation for CIs
+1. **Gene filtering** — remove genes with < `min_count` counts in < `min_samples` samples
+2. **Normalization** — edgeR-style TMM factors + log2 workflow offset
+3. **GG parameter fitting** — natural-gradient hierarchical MAP (Firth for n <= 10; gamma fixed to 1 for n <= 5)
+4. **Variance shrinkage** — limma-style fitFDist with mean-variance trend
+5. **Primary DE channel** — moderated t-test (`pvalue_t` / `padj_t`)
+6. **Diagnostic channels** — GG mean Wald and manifold
+7. **DV/DG channels** — DV on log CV² and DG on alpha/gamma
+8. **LFC shrinkage** — Cauchy prior shrinkage (`log2FC_shrunk`)
+9. **Cauchy aggregation** — `pvalue_dd` from DV + DG-gamma; `SGCB_Score` from DE + DD (plus bootstrap channel when enabled)
+10. *(Optional)* **Calibrated bootstrap** — additional uncertainty columns
 
 ## Package Structure
 
@@ -245,7 +247,7 @@ SGCB/
 │   ├── parametric_bootstrap.cpp  # Smoothed bootstrap (small samples)
 │   ├── permutation.cpp    # Permutation + dropout permutation
 │   ├── adaptive_inference.cpp    # Adaptive variance shrinkage
-│   ├── sgcb_adam_optimizer.cpp   # Adam optimizer
+│   ├── sgcb_adam_optimizer.cpp   # Legacy optimizer path (kept for compatibility)
 │   ├── estimation_accel.cpp      # LOESS, TMM, tagwise dispersion
 │   ├── matrix_ops.cpp     # Parallel matrix operations
 │   ├── wide_shallow_ae.cpp       # Wide-shallow autoencoder
@@ -267,11 +269,11 @@ SGCB/
 
 MIT
 
-## Citation
+## Reference
 
 If you use SGCB, please cite:
 
 ```
-SGCB: Shallow Generalized-Gamma Calibrated Bootstrap for
-Bulk RNA-seq Differential Expression Analysis (2025)
+SGCB: Generalized-Gamma Differential Expression for Bulk RNA-seq (2025)
 https://github.com/aeqby770/SGCB
+```

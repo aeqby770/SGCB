@@ -35,9 +35,14 @@ inline double clip(double x, double lo, double hi) {
     return std::max(lo, std::min(hi, x));
 }
 
+inline double batch_correct_count(double x, double batch_eff) {
+    double x_corr = std::exp(std::log(x + 0.5) - batch_eff) - 0.5;
+    return std::max(x_corr, 0.0);
+}
+
 inline double gg_loglik(double x, double alpha, double beta, double gamma, double eps) {
     x = std::max(x, eps);
-    return std::log(gamma) - alpha * std::log(beta) - fast_special::lgamma(alpha) +
+    return std::log(gamma) - gamma * alpha * std::log(beta) - fast_special::lgamma(alpha) +
            (gamma * alpha - 1.0) * std::log(x) - std::pow(x / beta, gamma);
 }
 
@@ -49,9 +54,9 @@ inline void gg_grad(double x, double alpha, double beta, double gamma, double ep
     double ratio_g = std::pow(ratio, gamma);
     double log_ratio = std::log(ratio);
     
-    grad_alpha = -std::log(beta) - fast_special::digamma(alpha) + gamma * log_x;
-    grad_beta = -alpha / beta + gamma * ratio_g / beta;
-    grad_gamma = 1.0 / gamma + alpha * log_x - ratio_g * log_ratio;
+    grad_alpha = -gamma * std::log(beta) - fast_special::digamma(alpha) + gamma * log_x;
+    grad_beta = -gamma * alpha / beta + gamma * ratio_g / beta;
+    grad_gamma = 1.0 / gamma + alpha * log_ratio - ratio_g * log_ratio;
 }
 
 // -----------------------------------------------------------------------------
@@ -156,7 +161,7 @@ List fit_conditional_ae_cpp(NumericMatrix X,
             double var = std::max(cond_vars[c][g], eps);
             
             alpha_out(g, c) = clip(mu * mu / var, 0.1, 100);
-            beta_out(g, c) = clip(mu, eps, 1e6);
+            beta_out(g, c) = clip(var / mu, eps, 1e6);
             gamma_out(g, c) = 1.0;
         }
     }
@@ -181,6 +186,10 @@ List fit_conditional_ae_cpp(NumericMatrix X,
     
     std::vector<std::vector<double>> m_batch(n_batch, std::vector<double>(n_genes, 0.0));
     std::vector<std::vector<double>> v_batch(n_batch, std::vector<double>(n_genes, 0.0));
+
+    // Adam bias-correction time steps must match actual update counts
+    std::vector<int> t_cond(n_cond, 0);
+    std::vector<int> t_batch(n_batch, 0);
     
     // Training loop
     for (int iter = 0; iter < n_iter; iter++) {
@@ -190,6 +199,14 @@ List fit_conditional_ae_cpp(NumericMatrix X,
         for (int j = 0; j < n_samples; j++) {
             int b = batch[j];
             int c = condition[j];
+
+            t_cond[c] += 1;
+            t_batch[b] += 1;
+
+            double lr_cond = lr * std::sqrt(1.0 - std::pow(beta2, t_cond[c])) /
+                            (1.0 - std::pow(beta1, t_cond[c]));
+            double lr_batch = lr * std::sqrt(1.0 - std::pow(beta2, t_batch[b])) /
+                             (1.0 - std::pow(beta1, t_batch[b]));
             
             // Compute per-gene gradients
             #ifdef _OPENMP
@@ -216,33 +233,30 @@ List fit_conditional_ae_cpp(NumericMatrix X,
                 
                 // Batch effect gradient
                 double grad_batch = grad_beta * beta_adj;  // chain rule
-                
-                // Adam update
-                int t = iter * n_samples + j + 1;
-                double lr_t = lr * std::sqrt(1.0 - std::pow(beta2, t)) / (1.0 - std::pow(beta1, t));
+                double grad_beta_raw = grad_beta * std::exp(batch_effect[b][g]);
                 
                 // Alpha
                 m_alpha(g, c) = beta1 * m_alpha(g, c) + (1 - beta1) * grad_alpha;
                 v_alpha(g, c) = beta2 * v_alpha(g, c) + (1 - beta2) * grad_alpha * grad_alpha;
-                double update_alpha = lr_t * m_alpha(g, c) / (std::sqrt(v_alpha(g, c)) + eps);
+                double update_alpha = lr_cond * m_alpha(g, c) / (std::sqrt(v_alpha(g, c)) + eps);
                 alpha_out(g, c) = clip(alpha + update_alpha, 0.01, 1000);
                 
                 // Beta (raw, without batch effect)
-                m_beta(g, c) = beta1 * m_beta(g, c) + (1 - beta1) * grad_beta;
-                v_beta(g, c) = beta2 * v_beta(g, c) + (1 - beta2) * grad_beta * grad_beta;
-                double update_beta = lr_t * m_beta(g, c) / (std::sqrt(v_beta(g, c)) + eps);
+                m_beta(g, c) = beta1 * m_beta(g, c) + (1 - beta1) * grad_beta_raw;
+                v_beta(g, c) = beta2 * v_beta(g, c) + (1 - beta2) * grad_beta_raw * grad_beta_raw;
+                double update_beta = lr_cond * m_beta(g, c) / (std::sqrt(v_beta(g, c)) + eps);
                 beta_out(g, c) = clip(beta_raw + update_beta, eps, 1e8);
                 
                 // Gamma
                 m_gamma(g, c) = beta1 * m_gamma(g, c) + (1 - beta1) * grad_gamma;
                 v_gamma(g, c) = beta2 * v_gamma(g, c) + (1 - beta2) * grad_gamma * grad_gamma;
-                double update_gamma = lr_t * m_gamma(g, c) / (std::sqrt(v_gamma(g, c)) + eps);
+                double update_gamma = lr_cond * m_gamma(g, c) / (std::sqrt(v_gamma(g, c)) + eps);
                 gamma_out(g, c) = clip(gamma + update_gamma, 0.01, 100);
                 
                 // Batch effect
                 m_batch[b][g] = beta1 * m_batch[b][g] + (1 - beta1) * grad_batch;
                 v_batch[b][g] = beta2 * v_batch[b][g] + (1 - beta2) * grad_batch * grad_batch;
-                double update_batch = lr_t * m_batch[b][g] / (std::sqrt(v_batch[b][g]) + eps);
+                double update_batch = lr_batch * m_batch[b][g] / (std::sqrt(v_batch[b][g]) + eps);
                 batch_effect[b][g] = clip(batch_effect[b][g] + update_batch, -5, 5);
             }
         }
@@ -383,14 +397,14 @@ List conditional_de_test_cpp(NumericMatrix X,
             for (int i = 0; i < n_ctrl; i++) {
                 int j = boot_ctrl[i];
                 int bat = batch[j];
-                double x = X(g, j) * std::exp(-batch_effect(g, bat));  // remove batch
+                double x = batch_correct_count(X(g, j), batch_effect(g, bat));
                 sum_ctrl += x;
             }
             
             for (int i = 0; i < n_treat; i++) {
                 int j = boot_treat[i];
                 int bat = batch[j];
-                double x = X(g, j) * std::exp(-batch_effect(g, bat));  // remove batch
+                double x = batch_correct_count(X(g, j), batch_effect(g, bat));
                 sum_treat += x;
             }
             
@@ -443,7 +457,7 @@ List conditional_de_test_cpp(NumericMatrix X,
         double sum = 0;
         for (int j = 0; j < n_samples; j++) {
             int b = batch[j];
-            sum += X(g, j) * std::exp(-batch_effect(g, b));  // batch-corrected expression
+            sum += batch_correct_count(X(g, j), batch_effect(g, b));
         }
         baseMean[g] = sum / n_samples;
     }
@@ -479,8 +493,7 @@ NumericMatrix remove_batch_effect_cpp(NumericMatrix X,
     for (int j = 0; j < n_samples; j++) {
         int b = batch[j];
         for (int g = 0; g < n_genes; g++) {
-            // Multiplicative correction: X_corrected = X * exp(-batch_effect)
-            X_corrected(g, j) = X(g, j) * std::exp(-batch_effect(g, b));
+            X_corrected(g, j) = batch_correct_count(X(g, j), batch_effect(g, b));
         }
     }
     

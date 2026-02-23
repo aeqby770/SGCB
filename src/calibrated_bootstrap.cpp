@@ -23,7 +23,7 @@ using namespace Rcpp;
 
 inline double gg_loglik_single(double x, double alpha, double beta, double gamma, double eps = 1e-8) {
     x = std::max(x, eps);
-    return std::log(gamma) - alpha * std::log(beta) - std::lgamma(alpha) +
+    return std::log(gamma) - gamma * alpha * std::log(beta) - std::lgamma(alpha) +
            (gamma * alpha - 1.0) * std::log(x) - std::pow(x / beta, gamma);
 }
 
@@ -308,13 +308,13 @@ List gg_mle_single_cpp(NumericVector x, int max_iter = 50, double tol = 1e-6) {
             double log_ratio = std::log(ratio);
             
             // Gradient
-            grad_a += -std::log(beta) - R::digamma(alpha) + gamma * log_xi;
-            grad_b += -alpha / beta + gamma * ratio_g / beta;
-            grad_g += 1.0 / gamma + alpha * log_xi - ratio_g * log_ratio;
+            grad_a += -gamma * std::log(beta) - R::digamma(alpha) + gamma * log_xi;
+            grad_b += -gamma * alpha / beta + gamma * ratio_g / beta;
+            grad_g += 1.0 / gamma + alpha * log_ratio - ratio_g * log_ratio;
             
             // Hessian diagonal
             hess_a += -R::trigamma(alpha);
-            hess_b += alpha / (beta * beta) - gamma * (gamma + 1.0) * ratio_g / (beta * beta);
+            hess_b += gamma * alpha / (beta * beta) - gamma * (gamma + 1.0) * ratio_g / (beta * beta);
             hess_g += -1.0 / (gamma * gamma) - ratio_g * log_ratio * log_ratio;
         }
         
@@ -384,12 +384,12 @@ List gg_mle_all_cpp(NumericMatrix X, int max_iter = 50, double tol = 1e-6) {
                 double ratio_g = std::pow(ratio, gamma);
                 double log_ratio = std::log(ratio);
                 
-                grad_a += -std::log(beta) - R::digamma(alpha) + gamma * log_xi;
-                grad_b += -alpha / beta + gamma * ratio_g / beta;
-                grad_g += 1.0 / gamma + alpha * log_xi - ratio_g * log_ratio;
+                grad_a += -gamma * std::log(beta) - R::digamma(alpha) + gamma * log_xi;
+                grad_b += -gamma * alpha / beta + gamma * ratio_g / beta;
+                grad_g += 1.0 / gamma + alpha * log_ratio - ratio_g * log_ratio;
                 
                 hess_a += -R::trigamma(alpha);
-                hess_b += alpha / (beta * beta) - gamma * (gamma + 1.0) * ratio_g / (beta * beta);
+                hess_b += gamma * alpha / (beta * beta) - gamma * (gamma + 1.0) * ratio_g / (beta * beta);
                 hess_g += -1.0 / (gamma * gamma) - ratio_g * log_ratio * log_ratio;
             }
             

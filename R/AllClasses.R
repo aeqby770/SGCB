@@ -11,9 +11,9 @@
 #' @slot hiddenWidth Hidden layer width
 #' @slot learningRate Learning rate
 #' @slot maxIter Maximum number of iterations
-#' @slot adamBeta1 Adam beta1 parameter
-#' @slot adamBeta2 Adam beta2 parameter
-#' @slot adamEps Adam epsilon
+#' @slot adamBeta1 Legacy optimizer parameter (currently unused by \\code{sgcbDE})
+#' @slot adamBeta2 Legacy optimizer parameter (currently unused by \\code{sgcbDE})
+#' @slot adamEps Legacy optimizer parameter (currently unused by \\code{sgcbDE})
 #' @slot weightDecay Weight decay (L2 regularization)
 #' @slot gradClip Gradient clipping threshold
 #' @slot lrDecayFactor Learning rate decay factor

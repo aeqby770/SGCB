@@ -25,6 +25,19 @@ inline double gg_theoretical_var(double alpha, double beta, double gamma, double
     return std::max(E_X2 - E_X * E_X, eps);
 }
 
+// Delta-method mapping to log2 scale:
+// Var[log2(X)] ≈ Var[X] / (E[X]^2 * (ln 2)^2)
+inline double gg_theoretical_var_log2(double alpha, double beta, double gamma, double eps = 1e-8) {
+    double log_gamma_a = fast_special::lgamma(alpha);
+    double log_gamma_a_1g = fast_special::lgamma(alpha + 1.0 / gamma);
+    double log_gamma_a_2g = fast_special::lgamma(alpha + 2.0 / gamma);
+    double E_X = beta * std::exp(log_gamma_a_1g - log_gamma_a);
+    double E_X2 = beta * beta * std::exp(log_gamma_a_2g - log_gamma_a);
+    double var_x = std::max(E_X2 - E_X * E_X, eps);
+    double denom = std::max(E_X * E_X * std::log(2.0) * std::log(2.0), eps);
+    return std::max(var_x / denom, eps);
+}
+
 // -----------------------------------------------------------------------------
 // Adaptive variance shrinkage (sample-size-aware)
 // Small samples: stronger prior weight (larger d0)
@@ -189,11 +202,10 @@ List adaptive_moderated_t_cpp(NumericMatrix X, IntegerVector group,
     alpha_mean /= n_genes;
     beta_mean /= n_genes;
     
-    // GG exact theoretical variance: Var(X) = beta^2*(Gamma(alpha+2/gamma)/Gamma(alpha) - (Gamma(alpha+1/gamma)/Gamma(alpha))^2)
-    // No longer using 1/alpha approximation; computing exactly
+    // GG exact theoretical variance on log2 scale via delta method
     NumericVector gg_theoretical_variance(n_genes);
     for (int g = 0; g < n_genes; g++) {
-        gg_theoretical_variance[g] = gg_theoretical_var(
+        gg_theoretical_variance[g] = gg_theoretical_var_log2(
             ae_alpha[g], ae_beta[g], ae_gamma[g], eps);
     }
     
@@ -314,11 +326,12 @@ List sgcb_adaptive_inference_cpp(NumericMatrix X, IntegerVector group,
         lfc_se_fused[g] = std::max(lfc_se_fused[g], eps);
     }
     
-    // Recompute t-statistics and p-values using fused SE (optional)
+    // Recompute statistics and p-values using fused SE (optional)
+    // Use normal approximation (dropout-fused SE is not from moderated-t pivot)
     NumericVector t_stat_fused(n_genes), pvalue_fused(n_genes);
     for (int g = 0; g < n_genes; g++) {
         t_stat_fused[g] = lfc_stable[g] / lfc_se_fused[g];
-        pvalue_fused[g] = 2.0 * R::pt(-std::abs(t_stat_fused[g]), df_total, 1, 0);
+        pvalue_fused[g] = 2.0 * R::pnorm(-std::abs(t_stat_fused[g]), 0.0, 1.0, 1, 0);
     }
     
     // Final p-value: Cauchy combination test (avoids FDR inflation from double-dipping)

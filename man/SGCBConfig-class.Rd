@@ -18,11 +18,11 @@ Stores SGCB analysis configuration parameters
 
 \item{\code{maxIter}}{Maximum number of iterations}
 
-\item{\code{adamBeta1}}{Adam beta1 parameter}
+\item{\code{adamBeta1}}{Legacy optimizer parameter (currently unused by \code{sgcbDE})}
 
-\item{\code{adamBeta2}}{Adam beta2 parameter}
+\item{\code{adamBeta2}}{Legacy optimizer parameter (currently unused by \code{sgcbDE})}
 
-\item{\code{adamEps}}{Adam epsilon}
+\item{\code{adamEps}}{Legacy optimizer parameter (currently unused by \code{sgcbDE})}
 
 \item{\code{weightDecay}}{Weight decay (L2 regularization)}
 

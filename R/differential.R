@@ -20,9 +20,9 @@ NULL
 #' hierarchical Bayesian MAP estimation, limma-style fitFDist variance
 #' shrinkage, Firth penalty (n <= 10), and manifold distance Wald
 #' \eqn{\chi^2} test for distributional shift detection (active when
-#' n >= 6 per group; contributes to SGCB_Score and pvalue_dd).
+#' n >= 6 per group; reported as diagnostic column pvalue_manifold).
 #' Output includes independent DD (Differential Distribution) p-values and
-#' SGCB_Score omnibus score (Cauchy combination of DE + DD + DV).
+#' SGCB_Score omnibus score (Cauchy combination of DE + DD [+ bootstrap]).
 #'
 #' @param counts Count matrix (genes x samples)
 #' @param group Grouping vector (two-level factor or character)
@@ -76,21 +76,24 @@ sgcbDE <- function(counts, group, alpha = 0.1,
     treat_idx <- which(group_int == 1)
     n_ctrl <- length(ctrl_idx)
     n_treat <- length(treat_idx)
+    eps <- 1e-8
 
     # ==========================================================================
-    # Normalization (DESeq2-style median-of-ratios, Anders & Huber 2010)
-    # Robust to DE genes: takes the median of per-gene ratios to geometric mean
+    # Normalization (edgeR-style TMM, Robinson & Oshlack 2010)
+    # C++ path: tmm_factors_cpp(counts, ref_idx)
     # ==========================================================================
-    log_counts <- log(counts_filt + 1)
-    geo_mean_per_gene <- exp(rowMeans(log_counts))
-    usable <- geo_mean_per_gene > 0
-    ratios <- counts_filt[usable, , drop = FALSE] / geo_mean_per_gene[usable]
-    sf <- apply(ratios, 2, median)
-    sf <- sf / exp(mean(log(sf)))
+    lib_sizes <- colSums(counts_filt)
+    ref_idx <- which.min(abs(lib_sizes - median(lib_sizes))) - 1L
+    tmm <- tmm_factors_cpp(counts_filt, as.integer(ref_idx),
+                           trim_m = 0.3, trim_a = 0.05,
+                           eps = eps, n_threads = 0L)
+    eff_lib <- lib_sizes * tmm
+    sf <- eff_lib / exp(mean(log(eff_lib)))
     sf[sf < 0.01] <- 1
     norm_counts <- t(t(counts_filt) / sf)
 
-    eps <- 1e-8
+    # Continuous relaxation for zero counts under continuous GG likelihood
+    norm_counts <- norm_counts + 0.5
 
     # ==========================================================================
     # Core inference: information geometry (C++)
@@ -98,7 +101,7 @@ sgcbDE <- function(counts, group, alpha = 0.1,
     # - Firth/Jeffreys penalty (n <= 10) + gamma=1 Gamma reduction (n <= 5)
     # - limma-style fitFDist variance shrinkage (Smyth 2004)
     # - Moderated t-test + manifold distance Wald chi-squared test
-    # - min-Bonferroni combination
+    # - Channel aggregation is handled in R (DD and SGCB_Score via Cauchy combination)
     # ==========================================================================
     result <- sgcb_info_geom_inference_cpp(
         norm_counts, group_int,
@@ -140,7 +143,7 @@ sgcbDE <- function(counts, group, alpha = 0.1,
 
     # ==========================================================================
     # Primary DE test: moderated t-test (robust to arbitrary data-generating process)
-    # pvalue_mu_wald retained as independent channel, only participates in SGCB_Score omnibus
+    # pvalue_mu_wald retained as diagnostic column (not used in primary/omnibus testing)
     # ==========================================================================
     pvalue <- result$pvalue_t
     padj <- p.adjust(pvalue, method = "BH")
@@ -215,12 +218,15 @@ sgcbDE <- function(counts, group, alpha = 0.1,
             NULL
         })
 
-        pvalue_bootstrap <- compute_empirical_pvalues(T_null_all, T_obs)
         quantiles_boot <- row_quantiles_cpp(T_null_all, c(0.025, 0.5, 0.975), 0L)
+        T_null_median <- quantiles_boot[, 2]
+        dev_obs <- abs(T_obs - T_null_median)
+        dev_null <- abs(T_null_all - T_null_median)
+        pvalue_bootstrap <- (1 + rowSums(dev_null >= dev_obs)) / (1 + B)
 
         boot_cols <- data.frame(
             T_obs = T_obs,
-            T_null_median = quantiles_boot[, 2],
+            T_null_median = T_null_median,
             T_CI_lo = quantiles_boot[, 1],
             T_CI_hi = quantiles_boot[, 3],
             pvalue_bootstrap = pvalue_bootstrap
@@ -229,23 +235,18 @@ sgcbDE <- function(counts, group, alpha = 0.1,
 
     # ==========================================================================
     # DD independent output (Differential Distribution)
-    # Cauchy combination of manifold + DV -> pvalue_dd
+    # Cauchy combination of DV(CV²) + DG(gamma), avoiding manifold double-counting
     # ==========================================================================
-    pvalue_dd <- rep(NA_real_, n_genes)
-    if (manifold_active) {
-        p_dd_mat <- cbind(result$pvalue_manifold, dv_result$pvalue)
-        pvalue_dd <- cauchy_combine(p_dd_mat)
-    }
-    padj_dd <- rep(NA_real_, n_genes)
-    padj_dd[!is.na(pvalue_dd)] <- p.adjust(pvalue_dd[!is.na(pvalue_dd)], method = "BH")
+    p_dd_mat <- cbind(dv_result$pvalue, dg_result$gamma_pvalue)
+    pvalue_dd <- cauchy_combine(p_dd_mat)
+    padj_dd <- p.adjust(pvalue_dd, method = "BH")
 
     # ==========================================================================
-    # SGCB_Score: Cauchy combination of DE(t) + GG(mu_wald) + DD(manifold) + DV [+ bootstrap]
-    # Four-channel omnibus: each channel independently calibrated before combination
+    # SGCB_Score: Cauchy combination of DE(t) + DD [+ bootstrap]
+    # Keep channels as orthogonal as possible; manifold/mu_wald are diagnostic columns
     # Score = -log10(p_omnibus), higher = stronger evidence
     # ==========================================================================
-    p_channels <- list(result$pvalue_t, result$pvalue_mu_wald, dv_result$pvalue)
-    if (manifold_active) p_channels <- c(list(result$pvalue_t, result$pvalue_mu_wald, result$pvalue_manifold), list(dv_result$pvalue))
+    p_channels <- list(result$pvalue_t, pvalue_dd)
     if (!is.null(boot_cols)) p_channels <- c(p_channels, list(boot_cols$pvalue_bootstrap))
     p_omni_mat <- do.call(cbind, p_channels)
     sgcb_score_p <- cauchy_combine(p_omni_mat)
@@ -275,11 +276,14 @@ sgcbDE <- function(counts, group, alpha = 0.1,
         treat_beta = result$treat_beta,
         treat_gamma = result$treat_gamma,
         dv_log2_var_ratio = dv_result$log2_var_ratio,
+        dv_log2_cv2_ratio = dv_result$log2_cv2_ratio,
         dv_stat = dv_result$stat,
         dv_pvalue = dv_result$pvalue,
         dv_padj = dv_padj,
         dv_var_ctrl = dv_result$var_ctrl,
         dv_var_treat = dv_result$var_treat,
+        dv_cv2_ctrl = dv_result$cv2_ctrl,
+        dv_cv2_treat = dv_result$cv2_treat,
         dg_alpha_log2_ratio = dg_result$alpha_log2_ratio,
         dg_alpha_stat = dg_result$alpha_stat,
         dg_alpha_pvalue = dg_result$alpha_pvalue,

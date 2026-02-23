@@ -158,7 +158,7 @@ struct LogSpaceGGParams {
         double xi = std::max(x, eps);
         double log_xi = std::log(xi);
         double log_b = std::log(b);
-        return std::log(g) - a * log_b - fast_special::lgamma(a) +
+        return std::log(g) - g * a * log_b - fast_special::lgamma(a) +
                (g * a - 1.0) * log_xi - std::pow(xi / b, g);
     }
     
@@ -176,9 +176,9 @@ struct LogSpaceGGParams {
         double log_ratio = std::log(ratio);
         
         // Original-space gradient
-        double grad_a = -std::log(b) - fast_special::digamma(a) + g * log_xi;
-        double grad_b = -a / b + g * ratio_g / b;
-        double grad_g = 1.0 / g + a * log_xi - ratio_g * log_ratio;
+        double grad_a = -g * std::log(b) - fast_special::digamma(a) + g * log_xi;
+        double grad_b = -g * a / b + g * ratio_g / b;
+        double grad_g = 1.0 / g + a * log_ratio - ratio_g * log_ratio;
         
         // Chain rule transformation to log space
         grad_la = grad_a * a;
@@ -1409,56 +1409,50 @@ List manifold_distance_test_cpp(NumericVector alpha_ctrl, NumericVector beta_ctr
         FisherMatrix3x3 Fc = compute_fisher_gg(ac, bc, gc, n_ctrl);
         FisherMatrix3x3 Ft = compute_fisher_gg(at, bt, gt, n_treat);
 
-        const double reg = 1e-12;
+        // Full 3x3 log-space covariance: V = I_c^{-1} + I_t^{-1}
+        // Wald statistic: chi = d^T V^{-1} d
+        double fc_aa = Fc.I_aa * ac * ac;
+        double fc_ab = Fc.I_ab * ac * bc;
+        double fc_ag = Fc.I_ag * ac * gc;
+        double fc_bb = Fc.I_bb * bc * bc;
+        double fc_bg = Fc.I_bg * bc * gc;
+        double fc_gg = Fc.I_gg * gc * gc;
 
-        double Fca = Fc.I_aa * ac * ac;
-        double Fcb = Fc.I_bb * bc * bc;
-        double Fcab = Fc.I_ab * ac * bc;
-        double trFc = Fca + Fcb;
-        double ridgeFc = 1e-12 * std::max(trFc, 0.0) + reg;
-        double Fca_r = Fca + ridgeFc;
-        double Fcb_r = Fcb + ridgeFc;
-        double detFc = Fca_r * Fcb_r - Fcab * Fcab;
-        detFc = std::max(detFc, reg);
-        double invc_aa = Fcb_r / detFc;
-        double invc_bb = Fca_r / detFc;
-        double invc_ab = -Fcab / detFc;
+        double ic_aa, ic_ab, ic_ag, ic_bb, ic_bg, ic_gg;
+        invert_sym_3x3(fc_aa, fc_ab, fc_ag, fc_bb, fc_bg, fc_gg,
+                       ic_aa, ic_ab, ic_ag, ic_bb, ic_bg, ic_gg);
 
-        double Fta = Ft.I_aa * at * at;
-        double Ftb = Ft.I_bb * bt * bt;
-        double Ftab = Ft.I_ab * at * bt;
-        double trFt = Fta + Ftb;
-        double ridgeFt = 1e-12 * std::max(trFt, 0.0) + reg;
-        double Fta_r = Fta + ridgeFt;
-        double Ftb_r = Ftb + ridgeFt;
-        double detFt = Fta_r * Ftb_r - Ftab * Ftab;
-        detFt = std::max(detFt, reg);
-        double invt_aa = Ftb_r / detFt;
-        double invt_bb = Fta_r / detFt;
-        double invt_ab = -Ftab / detFt;
+        double ft_aa = Ft.I_aa * at * at;
+        double ft_ab = Ft.I_ab * at * bt;
+        double ft_ag = Ft.I_ag * at * gt;
+        double ft_bb = Ft.I_bb * bt * bt;
+        double ft_bg = Ft.I_bg * bt * gt;
+        double ft_gg = Ft.I_gg * gt * gt;
 
-        double Vaa = invc_aa + invt_aa;
-        double Vab = invc_ab + invt_ab;
-        double Vbb = invc_bb + invt_bb;
-        double trV = Vaa + Vbb;
-        double ridgeV = 1e-12 * std::max(trV, 0.0) + reg;
-        double Vaa_r = Vaa + ridgeV;
-        double Vbb_r = Vbb + ridgeV;
-        double detV = Vaa_r * Vbb_r - Vab * Vab;
-        detV = std::max(detV, reg);
-        double Paa = Vbb_r / detV;
-        double Pbb = Vaa_r / detV;
-        double Pab = -Vab / detV;
-        double chi_ab = d_a * (Paa * d_a + Pab * d_b) + d_b * (Pab * d_a + Pbb * d_b);
+        double it_aa, it_ab, it_ag, it_bb, it_bg, it_gg;
+        invert_sym_3x3(ft_aa, ft_ab, ft_ag, ft_bb, ft_bg, ft_gg,
+                       it_aa, it_ab, it_ag, it_bb, it_bg, it_gg);
 
-        double varc_g = 1.0 / std::max(Fc.I_gg * gc * gc, reg);
-        double vart_g = 1.0 / std::max(Ft.I_gg * gt * gt, reg);
-        double var_g = varc_g + vart_g;
-        double chi_g = (d_g * d_g) / std::max(var_g, eps);
+        double Vaa = ic_aa + it_aa;
+        double Vab = ic_ab + it_ab;
+        double Vag = ic_ag + it_ag;
+        double Vbb = ic_bb + it_bb;
+        double Vbg = ic_bg + it_bg;
+        double Vgg = ic_gg + it_gg;
+
+        double Paa, Pab, Pag, Pbb, Pbg, Pgg;
+        invert_sym_3x3(Vaa, Vab, Vag, Vbb, Vbg, Vgg,
+                       Paa, Pab, Pag, Pbb, Pbg, Pgg);
+
+        double chi_full = d_a * (Paa * d_a + Pab * d_b + Pag * d_g) +
+                          d_b * (Pab * d_a + Pbb * d_b + Pbg * d_g) +
+                          d_g * (Pag * d_a + Pbg * d_b + Pgg * d_g);
+        double chi_ab = d_a * (Paa * d_a + Pab * d_b) +
+                        d_b * (Pab * d_a + Pbb * d_b);
 
         chi_ab_vec[g] = std::max(chi_ab, 0.0);
-        chi_g_vec[g] = std::max(chi_g, 0.0);
-        chi_sq_vec[g] = std::max(chi_ab + chi_g, 0.0);
+        chi_g_vec[g] = std::max(chi_full - chi_ab_vec[g], 0.0);
+        chi_sq_vec[g] = std::max(chi_full, 0.0);
     }
 
     for (int g = 0; g < n_genes; g++) geodesic_dist[g] = dist_vec[g];
@@ -2198,56 +2192,50 @@ List sgcb_info_geom_inference_cpp(NumericMatrix X,
         FisherMatrix3x3 Fc = compute_fisher_gg(ac, bc, gc, n_ctrl);
         FisherMatrix3x3 Ft = compute_fisher_gg(at, bt, gt, n_treat);
 
-        const double reg = 1e-12;
+        // Full 3x3 log-space covariance: V = I_c^{-1} + I_t^{-1}
+        // Wald statistic: chi = d^T V^{-1} d
+        double fc_aa = Fc.I_aa * ac * ac;
+        double fc_ab = Fc.I_ab * ac * bc;
+        double fc_ag = Fc.I_ag * ac * gc;
+        double fc_bb = Fc.I_bb * bc * bc;
+        double fc_bg = Fc.I_bg * bc * gc;
+        double fc_gg = Fc.I_gg * gc * gc;
 
-        double Fca = Fc.I_aa * ac * ac;
-        double Fcb = Fc.I_bb * bc * bc;
-        double Fcab = Fc.I_ab * ac * bc;
-        double trFc = Fca + Fcb;
-        double ridgeFc = 1e-12 * std::max(trFc, 0.0) + reg;
-        double Fca_r = Fca + ridgeFc;
-        double Fcb_r = Fcb + ridgeFc;
-        double detFc = Fca_r * Fcb_r - Fcab * Fcab;
-        detFc = std::max(detFc, reg);
-        double invc_aa = Fcb_r / detFc;
-        double invc_bb = Fca_r / detFc;
-        double invc_ab = -Fcab / detFc;
+        double ic_aa, ic_ab, ic_ag, ic_bb, ic_bg, ic_gg;
+        invert_sym_3x3(fc_aa, fc_ab, fc_ag, fc_bb, fc_bg, fc_gg,
+                       ic_aa, ic_ab, ic_ag, ic_bb, ic_bg, ic_gg);
 
-        double Fta = Ft.I_aa * at * at;
-        double Ftb = Ft.I_bb * bt * bt;
-        double Ftab = Ft.I_ab * at * bt;
-        double trFt = Fta + Ftb;
-        double ridgeFt = 1e-12 * std::max(trFt, 0.0) + reg;
-        double Fta_r = Fta + ridgeFt;
-        double Ftb_r = Ftb + ridgeFt;
-        double detFt = Fta_r * Ftb_r - Ftab * Ftab;
-        detFt = std::max(detFt, reg);
-        double invt_aa = Ftb_r / detFt;
-        double invt_bb = Fta_r / detFt;
-        double invt_ab = -Ftab / detFt;
+        double ft_aa = Ft.I_aa * at * at;
+        double ft_ab = Ft.I_ab * at * bt;
+        double ft_ag = Ft.I_ag * at * gt;
+        double ft_bb = Ft.I_bb * bt * bt;
+        double ft_bg = Ft.I_bg * bt * gt;
+        double ft_gg = Ft.I_gg * gt * gt;
 
-        double Vaa = invc_aa + invt_aa;
-        double Vab = invc_ab + invt_ab;
-        double Vbb = invc_bb + invt_bb;
-        double trV = Vaa + Vbb;
-        double ridgeV = 1e-12 * std::max(trV, 0.0) + reg;
-        double Vaa_r = Vaa + ridgeV;
-        double Vbb_r = Vbb + ridgeV;
-        double detV = Vaa_r * Vbb_r - Vab * Vab;
-        detV = std::max(detV, reg);
-        double Paa = Vbb_r / detV;
-        double Pbb = Vaa_r / detV;
-        double Pab = -Vab / detV;
-        double chi_ab = d_a * (Paa * d_a + Pab * d_b) + d_b * (Pab * d_a + Pbb * d_b);
+        double it_aa, it_ab, it_ag, it_bb, it_bg, it_gg;
+        invert_sym_3x3(ft_aa, ft_ab, ft_ag, ft_bb, ft_bg, ft_gg,
+                       it_aa, it_ab, it_ag, it_bb, it_bg, it_gg);
 
-        double varc_g = 1.0 / std::max(Fc.I_gg * gc * gc, reg);
-        double vart_g = 1.0 / std::max(Ft.I_gg * gt * gt, reg);
-        double var_g = varc_g + vart_g;
-        double chi_g = (d_g * d_g) / std::max(var_g, eps);
+        double Vaa = ic_aa + it_aa;
+        double Vab = ic_ab + it_ab;
+        double Vag = ic_ag + it_ag;
+        double Vbb = ic_bb + it_bb;
+        double Vbg = ic_bg + it_bg;
+        double Vgg = ic_gg + it_gg;
+
+        double Paa, Pab, Pag, Pbb, Pbg, Pgg;
+        invert_sym_3x3(Vaa, Vab, Vag, Vbb, Vbg, Vgg,
+                       Paa, Pab, Pag, Pbb, Pbg, Pgg);
+
+        double chi_full = d_a * (Paa * d_a + Pab * d_b + Pag * d_g) +
+                          d_b * (Pab * d_a + Pbb * d_b + Pbg * d_g) +
+                          d_g * (Pag * d_a + Pbg * d_b + Pgg * d_g);
+        double chi_ab = d_a * (Paa * d_a + Pab * d_b) +
+                        d_b * (Pab * d_a + Pbb * d_b);
 
         chi_ab_vec[g] = std::max(chi_ab, 0.0);
-        chi_g_vec[g] = std::max(chi_g, 0.0);
-        chi_sq_vec[g] = std::max(chi_ab + chi_g, 0.0);
+        chi_g_vec[g] = std::max(chi_full - chi_ab_vec[g], 0.0);
+        chi_sq_vec[g] = std::max(chi_full, 0.0);
     }
 
     for (int g = 0; g < n_genes; g++) geodesic_dist[g] = dist_vec[g];

@@ -1,16 +1,17 @@
 Package: SGCB
 Type: Package
-Title: Shallow Generalized-Gamma Calibrated Bootstrap for Bulk RNA-seq DE Analysis
+Title: Generalized-Gamma Differential Expression for Bulk RNA-seq
 Version: 0.2.0
 Authors@R: 
     person("Developer", "Name", , "dev@example.com", role = c("aut", "cre"))
-Description: A differential expression analysis method for bulk RNA-seq
-    using Generalized Gamma (GG) distribution modeling with information-geometric
-    natural gradient optimization. Features include: hierarchical Bayesian GG
-    parameter estimation with Firth penalty, limma-style empirical Bayes variance
-    shrinkage informed by GG theoretical variance, manifold distance Wald test
-    for differential distribution detection, Cauchy-combined omnibus scoring,
-    and optional calibrated bootstrap confidence intervals.
+Description: Differential analysis for two-group bulk RNA-seq based on
+    Generalized Gamma (GG) modeling and information-geometric natural-gradient
+    estimation. The pipeline uses TMM preprocessing, limma-style fitFDist
+    variance shrinkage, moderated-t testing for primary DE, and additional
+    diagnostic channels for GG mean, manifold distance, differential
+    variability (DV), and differential shape (DG). It reports DD via Cauchy
+    combination of DV and DG-gamma, SGCB_Score via Cauchy combination of DE and
+    DD, and optional calibrated bootstrap uncertainty columns.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

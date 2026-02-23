@@ -40,11 +40,11 @@ SGCBConfig(
 
 \item{maxIter}{Maximum number of iterations}
 
-\item{adamBeta1}{Adam beta1 parameter}
+\item{adamBeta1}{Legacy optimizer parameter (currently unused by \code{sgcbDE})}
 
-\item{adamBeta2}{Adam beta2 parameter}
+\item{adamBeta2}{Legacy optimizer parameter (currently unused by \code{sgcbDE})}
 
-\item{adamEps}{Adam epsilon}
+\item{adamEps}{Legacy optimizer parameter (currently unused by \code{sgcbDE})}
 
 \item{weightDecay}{Weight decay (L2 regularization)}
 
@@ -84,5 +84,7 @@ SGCBConfig(
 SGCBConfig object
 }
 \description{
-Create SGCB analysis configuration
+Create SGCB analysis configuration. In the current sgcbDE pipeline,
+only \code{bootB} is actively used; most optimizer-related slots are kept for
+backward compatibility.
 }

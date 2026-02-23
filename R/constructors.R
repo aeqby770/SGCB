@@ -6,14 +6,16 @@
 # SGCBConfig constructor
 # -----------------------------------------------------------------------------
 #' @title Create SGCBConfig configuration object
-#' @description Create SGCB analysis configuration
+#' @description Create SGCB analysis configuration. In the current sgcbDE pipeline,
+#' only \\code{bootB} is actively used; most optimizer-related slots are kept for
+#' backward compatibility.
 #' @param epsilon Numerical stability constant
 #' @param hiddenWidth Hidden layer width
 #' @param learningRate Learning rate
 #' @param maxIter Maximum number of iterations
-#' @param adamBeta1 Adam beta1 parameter
-#' @param adamBeta2 Adam beta2 parameter
-#' @param adamEps Adam epsilon
+#' @param adamBeta1 Legacy optimizer parameter (currently unused by \\code{sgcbDE})
+#' @param adamBeta2 Legacy optimizer parameter (currently unused by \\code{sgcbDE})
+#' @param adamEps Legacy optimizer parameter (currently unused by \\code{sgcbDE})
 #' @param weightDecay Weight decay (L2 regularization)
 #' @param gradClip Gradient clipping threshold
 #' @param lrDecayFactor Learning rate decay factor
