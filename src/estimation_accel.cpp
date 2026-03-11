@@ -6,7 +6,7 @@
 // [[Rcpp::plugins(openmp)]]
 // [[Rcpp::plugins(cpp17)]]
 #include <Rcpp.h>
-#include "sgcb_optimized.hpp"
+#include "sgcb_optimized.h"
 #include <algorithm>
 #include <vector>
 #include <cmath>

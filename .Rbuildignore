@@ -3,3 +3,10 @@
 ^sgcb_output$
 ^.*\.Rproj$
 ^\.Rproj\.user$
+^R/\.keep$
+^src/\.keep$
+^src/sgcb_optimized\.hpp$
+^src/.*\.o$
+^src/.*\.dll$
+^src/.*\.so$
+^src/.*\.a$

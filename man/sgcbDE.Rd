@@ -45,7 +45,7 @@ SGCBResults object
 Information-geometric differential expression analysis based on the Generalized Gamma distribution.
 Fits GG(alpha, beta, gamma) parameters via natural gradient + hierarchical Bayes MAP,
 limma-style fitFDist variance shrinkage, Firth penalty (n<=10),
-and manifold distance Wald chi-squared test for distributional shift detection (active when n >= 6 per group; reported as diagnostic channel \\code{pvalue_manifold}).
+and manifold distance Wald chi-squared test for distributional shift detection (active when n >= 6 per group; reported as diagnostic channel \code{pvalue_manifold}).
 }
 \examples{
 \donttest{
