@@ -6,11 +6,11 @@ Authors@R:
     c(
         person("Hongjie", "Jiang", role = "aut"),
         person("Anchi", "Che", role = "aut"),
-        person("Yanxiao", "Han", role = "aut", comment = "co-corresponding author"),
-        person("Yanshuo", "Han", email = "jiangxiantian2@gmail.com", role = c("aut", "cre"), comment = "co-corresponding author")
+        person("Yanxiao", "Han", email = "yanxiao.han@aliyun.com", role = "aut", comment = "co-corresponding author"),
+        person("Yanshuo", "Han", email = "yanshuohan@dlut.edu.cn", role = c("aut", "cre"), comment = "co-corresponding author")
     )
 Author: Hongjie Jiang [aut], Anchi Che [aut], Yanxiao Han [aut] (co-corresponding author), Yanshuo Han [aut, cre] (co-corresponding author)
-Maintainer: Yanshuo Han <jiangxiantian2@gmail.com>
+Maintainer: Yanshuo Han <yanshuohan@dlut.edu.cn>
 Description: Differential analysis for two-group bulk RNA-seq based on
     Generalized Gamma (GG) modeling and information-geometric natural-gradient
     estimation. The inferential core fits gene-wise GG models, applies TMM
