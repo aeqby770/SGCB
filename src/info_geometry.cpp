@@ -256,6 +256,8 @@ List fit_gg_natural_gradient_cpp(NumericMatrix X,
                                   double lr = -1,
                                   double weight_decay = -1,
                                   bool use_natural_grad = true,
+                                  bool use_firth_override = true,
+                                  bool use_gamma_submodel = true,
                                   double eps = 1e-8) {
     const int n_genes = X.nrow();
     const int n_samples = X.ncol();
@@ -267,11 +269,8 @@ List fit_gg_natural_gradient_cpp(NumericMatrix X,
     if (weight_decay > 0) cfg.weight_decay = weight_decay;
     cfg.use_natural_grad = use_natural_grad;
     
-    // Small-sample submodel reduction + Firth penalty (Prentice 1974, Firth 1993)
-    // n<=5: fix γ=1 (reduce to standard Gamma) to avoid non-identifiability with 3 params vs <=5 data points
-    // n=6-10: add Jeffreys penalty +(1/2)log|I(θ)| to stabilize MLE
-    bool fix_gamma = (n_samples <= 5);
-    bool use_firth = (n_samples <= 10);
+    bool fix_gamma = use_gamma_submodel && (n_samples <= 5);
+    bool use_firth = use_firth_override && (n_samples <= 10);
     
     // Log-space parameter initialization
     std::vector<double> log_alpha(n_genes), log_beta(n_genes), log_gamma(n_genes);
@@ -835,6 +834,8 @@ List fit_gg_hierarchical_bayes_cpp(NumericMatrix X,
 static List fit_gg_with_shared_prior(NumericMatrix X,
                                       const HierarchicalPrior& shared_prior,
                                       bool use_natural_grad,
+                                      bool use_firth_override,
+                                      bool use_gamma_submodel,
                                       double eps) {
     const int n_genes = X.nrow();
     const int n_samples = X.ncol();
@@ -843,8 +844,8 @@ static List fit_gg_with_shared_prior(NumericMatrix X,
     cfg.use_natural_grad = use_natural_grad;
     
     double prior_weight = std::max(0.01, 2.0 / std::sqrt(n_samples + 1.0));
-    bool fix_gamma = (n_samples <= 5);
-    bool use_firth = (n_samples <= 10);
+    bool fix_gamma = use_gamma_submodel && (n_samples <= 5);
+    bool use_firth = use_firth_override && (n_samples <= 10);
     
     // Fast MLE initialization
     std::vector<double> log_alpha(n_genes), log_beta(n_genes), log_gamma(n_genes);
@@ -1709,6 +1710,9 @@ List sgcb_info_geom_inference_cpp(NumericMatrix X,
                                    double dropout_rate = 0.2,
                                    bool use_natural_grad = true,
                                    bool use_hierarchical = true,
+                                   bool use_firth = true,
+                                   bool use_gamma_submodel = true,
+                                   bool use_gg_variance = true,
                                    double eps = 1e-8) {
     const int n_genes = X.nrow();
     const int n_samples = X.ncol();
@@ -1769,11 +1773,11 @@ List sgcb_info_geom_inference_cpp(NumericMatrix X,
         shared_prior.estimate_from_data(pool_la, pool_lb, pool_lg);
         
         // 2) Per-group MAP fitting using shared prior
-        gg_ctrl = fit_gg_with_shared_prior(ctrl_mat, shared_prior, use_natural_grad, eps);
-        gg_treat = fit_gg_with_shared_prior(treat_mat, shared_prior, use_natural_grad, eps);
+        gg_ctrl = fit_gg_with_shared_prior(ctrl_mat, shared_prior, use_natural_grad, use_firth, use_gamma_submodel, eps);
+        gg_treat = fit_gg_with_shared_prior(treat_mat, shared_prior, use_natural_grad, use_firth, use_gamma_submodel, eps);
     } else {
-        gg_ctrl = fit_gg_natural_gradient_cpp(ctrl_mat, -1, -1, -1, use_natural_grad, eps);
-        gg_treat = fit_gg_natural_gradient_cpp(treat_mat, -1, -1, -1, use_natural_grad, eps);
+        gg_ctrl = fit_gg_natural_gradient_cpp(ctrl_mat, -1, -1, -1, use_natural_grad, use_firth, use_gamma_submodel, eps);
+        gg_treat = fit_gg_natural_gradient_cpp(treat_mat, -1, -1, -1, use_natural_grad, use_firth, use_gamma_submodel, eps);
     }
     
     NumericVector ae_alpha = gg_ctrl["alpha"];
@@ -2011,6 +2015,7 @@ List sgcb_info_geom_inference_cpp(NumericMatrix X,
     else if (n_min <= 20) w_base = 0.35;
     else if (n_min <= 50) w_base = 0.50;
     else                  w_base = 0.65;
+    if (!use_gg_variance) w_base = 0.0;
     
     // Step 6: Gene-specific EB shrinkage (Trend + bidirectional GG fusion)
     // Unified formula:
@@ -2320,6 +2325,9 @@ List sgcb_info_geom_inference_cpp(NumericMatrix X,
         Named("treat_beta") = treat_beta,
         Named("treat_gamma") = treat_gamma,
         Named("use_natural_grad") = use_natural_grad,
-        Named("use_hierarchical") = use_hierarchical
+        Named("use_hierarchical") = use_hierarchical,
+        Named("use_firth") = use_firth,
+        Named("use_gamma_submodel") = use_gamma_submodel,
+        Named("use_gg_variance") = use_gg_variance
     );
 }

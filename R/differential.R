@@ -55,6 +55,12 @@ sgcbDE <- function(counts, group, alpha = 0.1,
 
     cfg <- if (is.null(config)) defaultSGCBConfig() else config
     if (is.null(config)) cfg@bootB <- as.integer(n_boot)
+    dots <- list(...)
+    use_natural_grad_opt <- if ("use_natural_grad" %in% names(dots)) isTRUE(dots$use_natural_grad) else TRUE
+    use_hierarchical_opt <- if ("use_hierarchical" %in% names(dots)) isTRUE(dots$use_hierarchical) else TRUE
+    use_firth_opt <- if ("use_firth" %in% names(dots)) isTRUE(dots$use_firth) else TRUE
+    use_gamma_submodel_opt <- if ("use_gamma_submodel" %in% names(dots)) isTRUE(dots$use_gamma_submodel) else TRUE
+    use_gg_variance_opt <- if ("use_gg_variance" %in% names(dots)) isTRUE(dots$use_gg_variance) else TRUE
 
     # Input validation
     stopifnot(is.matrix(counts) || is.data.frame(counts))
@@ -107,8 +113,11 @@ sgcbDE <- function(counts, group, alpha = 0.1,
         norm_counts, group_int,
         n_dropout = 0L,
         dropout_rate = 0.0,
-        use_natural_grad = TRUE,
-        use_hierarchical = TRUE,
+        use_natural_grad = use_natural_grad_opt,
+        use_hierarchical = use_hierarchical_opt,
+        use_firth = use_firth_opt,
+        use_gamma_submodel = use_gamma_submodel_opt,
+        use_gg_variance = use_gg_variance_opt,
         eps = eps
     )
 
@@ -326,9 +335,119 @@ sgcbDE <- function(counts, group, alpha = 0.1,
     attr(results, "var_shrunk") <- result$var_shrunk
     attr(results, "gg_weight") <- result$gg_weight
     attr(results, "d_gg_eff") <- result$d_gg_eff
+    attr(results, "use_natural_grad") <- use_natural_grad_opt
+    attr(results, "use_hierarchical") <- use_hierarchical_opt
+    attr(results, "use_firth") <- use_firth_opt
+    attr(results, "use_gamma_submodel") <- use_gamma_submodel_opt
+    attr(results, "use_gg_variance") <- use_gg_variance_opt
 
     class(results) <- c("SGCBResults", "data.frame")
     results
+}
+
+.align_sgcb_sample_data <- function(counts, sample_data) {
+    counts <- as.matrix(counts)
+    sample_data <- as.data.frame(sample_data, stringsAsFactors = FALSE)
+    stopifnot(ncol(counts) == nrow(sample_data))
+    if (!is.null(colnames(counts)) && !is.null(rownames(sample_data)) && !identical(colnames(counts), rownames(sample_data))) {
+        stopifnot(all(colnames(counts) %in% rownames(sample_data)))
+        sample_data <- sample_data[colnames(counts), , drop = FALSE]
+    }
+    sample_data
+}
+
+.resolve_sgcb_subset <- function(sample_data, counts, sample_subset = NULL) {
+    idx <- rep(TRUE, nrow(sample_data))
+    if (is.null(sample_subset)) {
+        return(idx)
+    }
+    if (is.logical(sample_subset)) {
+        stopifnot(length(sample_subset) == nrow(sample_data))
+        idx <- sample_subset
+    } else if (is.numeric(sample_subset)) {
+        idx <- rep(FALSE, nrow(sample_data))
+        idx[as.integer(sample_subset)] <- TRUE
+    } else {
+        sample_ids <- rownames(sample_data)
+        if (is.null(sample_ids)) {
+            sample_ids <- colnames(counts)
+        }
+        idx <- sample_ids %in% as.character(sample_subset)
+    }
+    idx
+}
+
+sgcbContrast <- function(counts, sample_data, group_col, contrast_levels,
+                         sample_subset = NULL, alpha = 0.1,
+                         use_manifold_test = TRUE,
+                         bootstrap = FALSE, n_boot = 200,
+                         min_count = 10, min_samples = 2,
+                         config = NULL, ...) {
+    counts <- as.matrix(counts)
+    sample_data <- .align_sgcb_sample_data(counts, sample_data)
+    contrast_levels <- as.character(contrast_levels)
+    stopifnot(length(contrast_levels) == 2)
+    idx_subset <- .resolve_sgcb_subset(sample_data, counts, sample_subset)
+    idx_contrast <- idx_subset & sample_data[[group_col]] %in% contrast_levels
+    counts_sub <- counts[, idx_contrast, drop = FALSE]
+    group_sub <- factor(sample_data[[group_col]][idx_contrast], levels = contrast_levels)
+    stopifnot(nlevels(group_sub) == 2)
+    res <- sgcbDE(
+        counts = counts_sub,
+        group = group_sub,
+        alpha = alpha,
+        use_manifold_test = use_manifold_test,
+        bootstrap = bootstrap,
+        n_boot = n_boot,
+        min_count = min_count,
+        min_samples = min_samples,
+        config = config,
+        ...
+    )
+    attr(res, "deployment_mode") <- "contrast_defined_wrapper"
+    attr(res, "group_col") <- group_col
+    attr(res, "contrast_levels") <- contrast_levels
+    attr(res, "n_wrapper_samples") <- ncol(counts_sub)
+    attr(res, "sample_subset_applied") <- !is.null(sample_subset)
+    res
+}
+
+sgcbPairwise <- function(counts, sample_data, group_col,
+                         sample_subset = NULL, contrast_levels = NULL,
+                         alpha = 0.1, use_manifold_test = TRUE,
+                         bootstrap = FALSE, n_boot = 200,
+                         min_count = 10, min_samples = 2,
+                         config = NULL, ...) {
+    counts <- as.matrix(counts)
+    sample_data <- .align_sgcb_sample_data(counts, sample_data)
+    idx_subset <- .resolve_sgcb_subset(sample_data, counts, sample_subset)
+    available_levels <- unique(as.character(sample_data[[group_col]][idx_subset]))
+    target_levels <- if (is.null(contrast_levels)) available_levels else as.character(contrast_levels)
+    contrast_list <- utils::combn(target_levels, 2, simplify = FALSE)
+    out <- lapply(contrast_list, function(level_pair) {
+        sgcbContrast(
+            counts = counts,
+            sample_data = sample_data,
+            group_col = group_col,
+            contrast_levels = level_pair,
+            sample_subset = idx_subset,
+            alpha = alpha,
+            use_manifold_test = use_manifold_test,
+            bootstrap = bootstrap,
+            n_boot = n_boot,
+            min_count = min_count,
+            min_samples = min_samples,
+            config = config,
+            ...
+        )
+    })
+    names(out) <- vapply(contrast_list, function(level_pair) paste(level_pair, collapse = "_vs_"), character(1))
+    attr(out, "deployment_mode") <- "pairwise_wrapper"
+    attr(out, "group_col") <- group_col
+    attr(out, "contrast_levels") <- target_levels
+    attr(out, "sample_subset_applied") <- !is.null(sample_subset)
+    class(out) <- c("SGCBContrastList", "list")
+    out
 }
 
 # =============================================================================

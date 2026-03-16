@@ -654,8 +654,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // fit_gg_natural_gradient_cpp
-List fit_gg_natural_gradient_cpp(NumericMatrix X, int n_iter, double lr, double weight_decay, bool use_natural_grad, double eps);
-RcppExport SEXP _SGCB_fit_gg_natural_gradient_cpp(SEXP XSEXP, SEXP n_iterSEXP, SEXP lrSEXP, SEXP weight_decaySEXP, SEXP use_natural_gradSEXP, SEXP epsSEXP) {
+List fit_gg_natural_gradient_cpp(NumericMatrix X, int n_iter, double lr, double weight_decay, bool use_natural_grad, bool use_firth_override, bool use_gamma_submodel, double eps);
+RcppExport SEXP _SGCB_fit_gg_natural_gradient_cpp(SEXP XSEXP, SEXP n_iterSEXP, SEXP lrSEXP, SEXP weight_decaySEXP, SEXP use_natural_gradSEXP, SEXP use_firth_overrideSEXP, SEXP use_gamma_submodelSEXP, SEXP epsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -664,8 +664,10 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< double >::type lr(lrSEXP);
     Rcpp::traits::input_parameter< double >::type weight_decay(weight_decaySEXP);
     Rcpp::traits::input_parameter< bool >::type use_natural_grad(use_natural_gradSEXP);
+    Rcpp::traits::input_parameter< bool >::type use_firth_override(use_firth_overrideSEXP);
+    Rcpp::traits::input_parameter< bool >::type use_gamma_submodel(use_gamma_submodelSEXP);
     Rcpp::traits::input_parameter< double >::type eps(epsSEXP);
-    rcpp_result_gen = Rcpp::wrap(fit_gg_natural_gradient_cpp(X, n_iter, lr, weight_decay, use_natural_grad, eps));
+    rcpp_result_gen = Rcpp::wrap(fit_gg_natural_gradient_cpp(X, n_iter, lr, weight_decay, use_natural_grad, use_firth_override, use_gamma_submodel, eps));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -751,8 +753,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // sgcb_info_geom_inference_cpp
-List sgcb_info_geom_inference_cpp(NumericMatrix X, IntegerVector group, int n_dropout, double dropout_rate, bool use_natural_grad, bool use_hierarchical, double eps);
-RcppExport SEXP _SGCB_sgcb_info_geom_inference_cpp(SEXP XSEXP, SEXP groupSEXP, SEXP n_dropoutSEXP, SEXP dropout_rateSEXP, SEXP use_natural_gradSEXP, SEXP use_hierarchicalSEXP, SEXP epsSEXP) {
+List sgcb_info_geom_inference_cpp(NumericMatrix X, IntegerVector group, int n_dropout, double dropout_rate, bool use_natural_grad, bool use_hierarchical, bool use_firth, bool use_gamma_submodel, bool use_gg_variance, double eps);
+RcppExport SEXP _SGCB_sgcb_info_geom_inference_cpp(SEXP XSEXP, SEXP groupSEXP, SEXP n_dropoutSEXP, SEXP dropout_rateSEXP, SEXP use_natural_gradSEXP, SEXP use_hierarchicalSEXP, SEXP use_firthSEXP, SEXP use_gamma_submodelSEXP, SEXP use_gg_varianceSEXP, SEXP epsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -762,8 +764,11 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< double >::type dropout_rate(dropout_rateSEXP);
     Rcpp::traits::input_parameter< bool >::type use_natural_grad(use_natural_gradSEXP);
     Rcpp::traits::input_parameter< bool >::type use_hierarchical(use_hierarchicalSEXP);
+    Rcpp::traits::input_parameter< bool >::type use_firth(use_firthSEXP);
+    Rcpp::traits::input_parameter< bool >::type use_gamma_submodel(use_gamma_submodelSEXP);
+    Rcpp::traits::input_parameter< bool >::type use_gg_variance(use_gg_varianceSEXP);
     Rcpp::traits::input_parameter< double >::type eps(epsSEXP);
-    rcpp_result_gen = Rcpp::wrap(sgcb_info_geom_inference_cpp(X, group, n_dropout, dropout_rate, use_natural_grad, use_hierarchical, eps));
+    rcpp_result_gen = Rcpp::wrap(sgcb_info_geom_inference_cpp(X, group, n_dropout, dropout_rate, use_natural_grad, use_hierarchical, use_firth, use_gamma_submodel, use_gg_variance, eps));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -1421,13 +1426,13 @@ static const R_CallMethodDef CallEntries[] = {
     {"_SGCB_compute_T_stat_batch", (DL_FUNC) &_SGCB_compute_T_stat_batch, 9},
     {"_SGCB_compute_coverage_error", (DL_FUNC) &_SGCB_compute_coverage_error, 3},
     {"_SGCB_compute_empirical_pvalues", (DL_FUNC) &_SGCB_compute_empirical_pvalues, 2},
-    {"_SGCB_fit_gg_natural_gradient_cpp", (DL_FUNC) &_SGCB_fit_gg_natural_gradient_cpp, 6},
+    {"_SGCB_fit_gg_natural_gradient_cpp", (DL_FUNC) &_SGCB_fit_gg_natural_gradient_cpp, 8},
     {"_SGCB_fit_gg_hierarchical_bayes_cpp", (DL_FUNC) &_SGCB_fit_gg_hierarchical_bayes_cpp, 6},
     {"_SGCB_adaptive_squeeze_var_gg_informed_cpp", (DL_FUNC) &_SGCB_adaptive_squeeze_var_gg_informed_cpp, 6},
     {"_SGCB_adaptive_squeeze_var_hierarchical_cpp", (DL_FUNC) &_SGCB_adaptive_squeeze_var_hierarchical_cpp, 4},
     {"_SGCB_manifold_distance_test_cpp", (DL_FUNC) &_SGCB_manifold_distance_test_cpp, 9},
     {"_SGCB_sgcb_wls_ebayes_cpp", (DL_FUNC) &_SGCB_sgcb_wls_ebayes_cpp, 6},
-    {"_SGCB_sgcb_info_geom_inference_cpp", (DL_FUNC) &_SGCB_sgcb_info_geom_inference_cpp, 7},
+    {"_SGCB_sgcb_info_geom_inference_cpp", (DL_FUNC) &_SGCB_sgcb_info_geom_inference_cpp, 10},
     {"_SGCB_matmul_parallel", (DL_FUNC) &_SGCB_matmul_parallel, 2},
     {"_SGCB_tcrossprod_parallel", (DL_FUNC) &_SGCB_tcrossprod_parallel, 2},
     {"_SGCB_crossprod_parallel", (DL_FUNC) &_SGCB_crossprod_parallel, 2},

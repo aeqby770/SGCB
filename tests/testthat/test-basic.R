@@ -112,3 +112,41 @@ test_that("Bootstrap functions work correctly", {
   expect_true(all(padj >= pvals))
   expect_true(all(padj <= 1))
 })
+
+test_that("sgcbContrast wrapper works correctly", {
+  set.seed(123)
+  n_genes <- 200
+  n_samples <- 9
+  counts <- matrix(rnbinom(n_genes * n_samples, mu = 120, size = 8), nrow = n_genes, ncol = n_samples)
+  rownames(counts) <- paste0("gene_", seq_len(n_genes))
+  colnames(counts) <- paste0("sample_", seq_len(n_samples))
+  counts[1:30, 4:6] <- counts[1:30, 4:6] * 2
+  sample_data <- data.frame(
+    condition = c(rep("A", 3), rep("B", 3), rep("C", 3)),
+    batch = rep(c("x", "y", "z"), 3),
+    row.names = colnames(counts)
+  )
+  res <- sgcbContrast(counts, sample_data, group_col = "condition", contrast_levels = c("A", "B"))
+  expect_s3_class(res, "SGCBResults")
+  expect_identical(attr(res, "deployment_mode"), "contrast_defined_wrapper")
+  expect_equal(attr(res, "contrast_levels"), c("A", "B"))
+  expect_equal(attr(res, "n_wrapper_samples"), 6)
+})
+
+test_that("sgcbPairwise wrapper returns pairwise result list", {
+  set.seed(123)
+  n_genes <- 150
+  n_samples <- 9
+  counts <- matrix(rpois(n_genes * n_samples, lambda = 100), nrow = n_genes, ncol = n_samples)
+  rownames(counts) <- paste0("gene_", seq_len(n_genes))
+  colnames(counts) <- paste0("sample_", seq_len(n_samples))
+  sample_data <- data.frame(
+    condition = c(rep("A", 3), rep("B", 3), rep("C", 3)),
+    row.names = colnames(counts)
+  )
+  res_list <- sgcbPairwise(counts, sample_data, group_col = "condition")
+  expect_s3_class(res_list, "SGCBContrastList")
+  expect_equal(length(res_list), 3)
+  expect_true(all(c("A_vs_B", "A_vs_C", "B_vs_C") %in% names(res_list)))
+  expect_true(all(vapply(res_list, inherits, logical(1), what = "SGCBResults")))
+})

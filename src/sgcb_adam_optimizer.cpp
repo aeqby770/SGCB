@@ -141,13 +141,13 @@ inline void gg_grad(double x, double alpha, double beta, double gamma, double ep
 
 // Declare function from info_geometry.cpp
 List fit_gg_natural_gradient_cpp(NumericMatrix X, int n_iter, double lr, 
-                                  double weight_decay, bool use_natural_grad, double eps);
+                                  double weight_decay, bool use_natural_grad, bool use_firth_override, bool use_gamma_submodel, double eps);
 
 // [[Rcpp::export]]
 List fit_gg_adam_cpp(NumericMatrix X, int n_iter = -1, double lr = -1, 
                       double weight_decay = -1, double eps = 1e-8) {
     // Directly call unified optimizer with Euclidean gradient (use_natural_grad=false)
-    return fit_gg_natural_gradient_cpp(X, n_iter, lr, weight_decay, false, eps);
+    return fit_gg_natural_gradient_cpp(X, n_iter, lr, weight_decay, false, true, true, eps);
 }
 
 // -----------------------------------------------------------------------------

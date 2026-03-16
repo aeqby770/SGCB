@@ -181,8 +181,8 @@ compute_empirical_pvalues <- function(T_null_mat, T_obs) {
     .Call(`_SGCB_compute_empirical_pvalues`, T_null_mat, T_obs)
 }
 
-fit_gg_natural_gradient_cpp <- function(X, n_iter = -1L, lr = -1, weight_decay = -1, use_natural_grad = TRUE, eps = 1e-8) {
-    .Call(`_SGCB_fit_gg_natural_gradient_cpp`, X, n_iter, lr, weight_decay, use_natural_grad, eps)
+fit_gg_natural_gradient_cpp <- function(X, n_iter = -1L, lr = -1, weight_decay = -1, use_natural_grad = TRUE, use_firth_override = TRUE, use_gamma_submodel = TRUE, eps = 1e-8) {
+    .Call(`_SGCB_fit_gg_natural_gradient_cpp`, X, n_iter, lr, weight_decay, use_natural_grad, use_firth_override, use_gamma_submodel, eps)
 }
 
 fit_gg_hierarchical_bayes_cpp <- function(X, n_iter = -1L, lr = -1, prior_strength = -1, use_natural_grad = TRUE, eps = 1e-8) {
@@ -205,8 +205,8 @@ sgcb_wls_ebayes_cpp <- function(y, design, contrast, gene_means, weights, eps = 
     .Call(`_SGCB_sgcb_wls_ebayes_cpp`, y, design, contrast, gene_means, weights, eps)
 }
 
-sgcb_info_geom_inference_cpp <- function(X, group, n_dropout = 50L, dropout_rate = 0.2, use_natural_grad = TRUE, use_hierarchical = TRUE, eps = 1e-8) {
-    .Call(`_SGCB_sgcb_info_geom_inference_cpp`, X, group, n_dropout, dropout_rate, use_natural_grad, use_hierarchical, eps)
+sgcb_info_geom_inference_cpp <- function(X, group, n_dropout = 50L, dropout_rate = 0.2, use_natural_grad = TRUE, use_hierarchical = TRUE, use_firth = TRUE, use_gamma_submodel = TRUE, use_gg_variance = TRUE, eps = 1e-8) {
+    .Call(`_SGCB_sgcb_info_geom_inference_cpp`, X, group, n_dropout, dropout_rate, use_natural_grad, use_hierarchical, use_firth, use_gamma_submodel, use_gg_variance, eps)
 }
 
 matmul_parallel <- function(A, B) {

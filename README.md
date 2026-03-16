@@ -11,6 +11,7 @@ mean-shift and distribution-shift evidence in one result table.
 - **Variance shrinkage**: TMM preprocessing + limma-style fitFDist on log2-scale pooled variance
 - **Testing outputs**: primary DE (`pvalue_t`), diagnostic channels (`pvalue_mu_wald`, `pvalue_manifold`), DD channel (`pvalue_dd` from DV + DG-gamma), and omnibus score (`SGCB_Score`)
 - **LFC shrinkage**: Cauchy prior (apeglm-style)
+- **Contrast-defined deployment wrappers**: `sgcbContrast()` and `sgcbPairwise()` map a pre-defined two-group comparison back to the unchanged `sgcbDE()` core
 - **Optional bootstrap**: calibrated confidence interval and p-value columns
 - **C++/OpenMP core** via Rcpp
 
@@ -93,6 +94,44 @@ group <- factor(c("WT","WT","WT","KO","KO","KO"), levels = c("WT", "KO"))
 
 **Output**: A data.frame of class `SGCBResults` with one row per gene that passes filtering. Positive `log2FoldChange` means higher in treatment.
 
+## Contrast-Defined Deployment
+
+`sgcbDE()` is the inferential core and should be used when your study is already a clean two-group comparison.
+
+If your primary analysis starts from a richer design, but you want to follow up on one pre-defined two-group contrast, use the wrappers below:
+
+```r
+# sample_data rownames must match colnames(counts)
+sample_data <- data.frame(
+  condition = c("A", "A", "A", "B", "B", "B", "C", "C", "C"),
+  batch = c("x", "y", "z", "x", "y", "z", "x", "y", "z"),
+  row.names = colnames(counts)
+)
+
+# Follow up one target contrast already defined upstream
+res_ab <- sgcbContrast(
+  counts,
+  sample_data = sample_data,
+  group_col = "condition",
+  contrast_levels = c("A", "B")
+)
+
+# Screen all pairwise contrasts within one factor
+res_all <- sgcbPairwise(
+  counts,
+  sample_data = sample_data,
+  group_col = "condition"
+)
+```
+
+Use these wrappers only when:
+
+1. a primary model or study design has already defined the biological contrast;
+2. any covariate adjustment has already been handled upstream; and
+3. you want SGCB as a secondary follow-up on the resulting two-group comparison.
+
+These wrappers do **not** make SGCB a multi-factor inference engine. They only subset samples and forward the resulting two-group problem to `sgcbDE()`.
+
 ## Output Columns (46 base + 5 with bootstrap)
 
 ### Which columns should I use?
@@ -103,6 +142,14 @@ For most users, the workflow is:
 2. **Rank genes** → sort by `padj` or `SGCB_Score` (descending)
 3. **Report fold changes** → use `log2FC_shrunk` (not raw `log2FoldChange`)
 4. **Volcano plot** → x = `log2FC_shrunk`, y = `-log10(pvalue)`
+
+For interpretation:
+
+1. **Primary inferential channel** → `padj` / `pvalue_t` for DE
+2. **Secondary distributional follow-up** → `dv_padj`, `dg_gamma_padj`, `padj_dd`
+3. **Diagnostics only** → `pvalue_mu_wald`, `pvalue_manifold`
+
+The DV/DG/DD channels are best treated as exploratory secondary signals. They can highlight structured non-mean changes, but they should not be treated as stand-alone biological validation without additional sensitivity analysis or replication.
 
 ### Three LFC columns — which one to use?
 
@@ -221,7 +268,7 @@ See `?SGCBConfig` for the full slot list.
 1. **Gene filtering** — remove genes with < `min_count` counts in < `min_samples` samples
 2. **Normalization** — edgeR-style TMM factors + log2 workflow offset
 3. **GG parameter fitting** — natural-gradient hierarchical MAP (Firth for n <= 10; gamma fixed to 1 for n <= 5)
-4. **Variance shrinkage** — limma-style fitFDist with mean-variance trend
+4. **Variance shrinkage** — limma-style mean-trend fitFDist followed by bounded GG-informed prior fusion
 5. **Primary DE channel** — moderated t-test (`pvalue_t` / `padj_t`)
 6. **Diagnostic channels** — GG mean Wald and manifold
 7. **DV/DG channels** — DV on log CV² and DG on alpha/gamma
