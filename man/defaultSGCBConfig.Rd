@@ -2,7 +2,7 @@
 % Please edit documentation in R/constructors.R
 \name{defaultSGCBConfig}
 \alias{defaultSGCBConfig}
-\title{Get Default Configuration}
+\title{Get default configuration}
 \usage{
 defaultSGCBConfig()
 }

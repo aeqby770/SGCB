@@ -2,7 +2,7 @@
 % Please edit documentation in R/constructors.R
 \name{SGCBConfig}
 \alias{SGCBConfig}
-\title{Create SGCBConfig Configuration Object}
+\title{Create SGCBConfig configuration object}
 \usage{
 SGCBConfig(
   epsilon = 1e-08,
@@ -40,11 +40,11 @@ SGCBConfig(
 
 \item{maxIter}{Maximum number of iterations}
 
-\item{adamBeta1}{Legacy optimizer parameter (currently unused by \code{sgcbDE})}
+\item{adamBeta1}{Legacy optimizer parameter (currently unused by \\code{sgcbDE})}
 
-\item{adamBeta2}{Legacy optimizer parameter (currently unused by \code{sgcbDE})}
+\item{adamBeta2}{Legacy optimizer parameter (currently unused by \\code{sgcbDE})}
 
-\item{adamEps}{Legacy optimizer parameter (currently unused by \code{sgcbDE})}
+\item{adamEps}{Legacy optimizer parameter (currently unused by \\code{sgcbDE})}
 
 \item{weightDecay}{Weight decay (L2 regularization)}
 
@@ -85,6 +85,6 @@ SGCBConfig object
 }
 \description{
 Create SGCB analysis configuration. In the current sgcbDE pipeline,
-only \code{bootB} is actively used; most optimizer-related slots are kept for
+only \\code{bootB} is actively used; most optimizer-related slots are kept for
 backward compatibility.
 }

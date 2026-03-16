@@ -12,12 +12,14 @@ Author: Hongjie Jiang [aut], Yanxiao Han [aut] (co-corresponding author), Yanshu
 Maintainer: Yanshuo Han <jiangxiantian2@gmail.com>
 Description: Differential analysis for two-group bulk RNA-seq based on
     Generalized Gamma (GG) modeling and information-geometric natural-gradient
-    estimation. The pipeline uses TMM preprocessing, limma-style fitFDist
-    variance shrinkage, moderated-t testing for primary DE, and additional
-    diagnostic channels for GG mean, manifold distance, differential
-    variability (DV), and differential shape (DG). It reports DD via Cauchy
-    combination of DV and DG-gamma, SGCB_Score via Cauchy combination of DE and
-    DD, and optional calibrated bootstrap uncertainty columns.
+    estimation. The inferential core fits gene-wise GG models, applies TMM
+    preprocessing, limma-style fitFDist variance shrinkage, moderated-t
+    testing for primary DE, and additional diagnostic channels for GG mean,
+    manifold distance, differential variability (DV), and differential shape
+    (DG). The package reports DD via Cauchy combination of DV and DG-gamma,
+    SGCB_Score via Cauchy combination of DE and DD, optional calibrated
+    bootstrap uncertainty columns, and deployment wrappers for
+    contrast-defined or pairwise follow-up from richer study designs.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

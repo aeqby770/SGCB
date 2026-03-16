@@ -12,17 +12,13 @@
 NULL
 
 
-#' SGCB Differential Expression Analysis
+#' SGCB differential analysis for a two-group comparison
 #'
-#' Information-geometric differential expression analysis based on the
-#' generalized gamma (GG) distribution.
-#' Fits GG(\eqn{\alpha, \beta, \gamma}) parameters via natural gradient +
-#' hierarchical Bayesian MAP estimation, limma-style fitFDist variance
-#' shrinkage, Firth penalty (n <= 10), and manifold distance Wald
-#' \eqn{\chi^2} test for distributional shift detection (active when
-#' n >= 6 per group; reported as diagnostic column pvalue_manifold).
-#' Output includes independent DD (Differential Distribution) p-values and
-#' SGCB_Score omnibus score (Cauchy combination of DE + DD [+ bootstrap]).
+#' Fits gene-wise generalized gamma (GG) models for a two-group RNA-seq
+#' contrast and returns mean-shift and distribution-shift summaries in one
+#' result table. The pipeline uses natural-gradient hierarchical MAP
+#' estimation, limma-style variance moderation, and optional diagnostic
+#' channels derived from the fitted GG parameters.
 #'
 #' @param counts Count matrix (genes x samples)
 #' @param group Grouping vector (two-level factor or character)
@@ -33,8 +29,8 @@ NULL
 #' @param min_count Minimum count threshold, default 10
 #' @param min_samples Minimum number of samples, default 2
 #' @param config SGCBConfig configuration object (optional)
-#' @param ... Backward-compatible parameters (method, n_dropout, dropout_rate etc. are deprecated; silently ignored)
-#' @return SGCBResults object
+#' @param ... Backward-compatible parameters that are currently accepted but not used by the current implementation
+#' @return An object of class \code{SGCBResults}
 #' @export
 #' @examples
 #' \donttest{
@@ -345,6 +341,7 @@ sgcbDE <- function(counts, group, alpha = 0.1,
     results
 }
 
+#' @noRd
 .align_sgcb_sample_data <- function(counts, sample_data) {
     counts <- as.matrix(counts)
     sample_data <- as.data.frame(sample_data, stringsAsFactors = FALSE)
@@ -356,6 +353,7 @@ sgcbDE <- function(counts, group, alpha = 0.1,
     sample_data
 }
 
+#' @noRd
 .resolve_sgcb_subset <- function(sample_data, counts, sample_subset = NULL) {
     idx <- rep(TRUE, nrow(sample_data))
     if (is.null(sample_subset)) {
@@ -377,12 +375,38 @@ sgcbDE <- function(counts, group, alpha = 0.1,
     idx
 }
 
+#' Contrast-defined deployment wrapper for SGCB
+#'
+#' Subsets a user-specified two-level comparison from \code{sample_data} and
+#' forwards the resulting count matrix and group vector to \code{sgcbDE()}.
+#' This helper does not fit covariates and does not alter the two-group
+#' inferential core.
+#'
+#' @param counts Count matrix (genes x samples)
+#' @param sample_data Sample metadata with one row per sample
+#' @param group_col Column in \code{sample_data} defining the grouping factor
+#' @param contrast_levels Character vector of length 2 giving the levels to compare, in control-then-treatment order
+#' @param sample_subset Optional logical, numeric, or character subset applied before the contrast is formed
+#' @inheritParams sgcbDE
+#' @return An object of class \code{SGCBResults} with additional attributes describing the wrapper call
+#' @export
+#' @examples
+#' \donttest{
+#' set.seed(1)
+#' counts <- matrix(rnbinom(300 * 9, mu = 150, size = 8), nrow = 300, ncol = 9)
+#' colnames(counts) <- paste0("sample_", seq_len(9))
+#' sample_data <- data.frame(
+#'   condition = c(rep("A", 3), rep("B", 3), rep("C", 3)),
+#'   row.names = colnames(counts)
+#' )
+#' res_ab <- sgcbContrast(counts, sample_data, group_col = "condition", contrast_levels = c("A", "B"))
+#' }
 sgcbContrast <- function(counts, sample_data, group_col, contrast_levels,
                          sample_subset = NULL, alpha = 0.1,
                          use_manifold_test = TRUE,
                          bootstrap = FALSE, n_boot = 200,
                          min_count = 10, min_samples = 2,
-                         config = NULL, ...) {
+                        config = NULL, ...) {
     counts <- as.matrix(counts)
     sample_data <- .align_sgcb_sample_data(counts, sample_data)
     contrast_levels <- as.character(contrast_levels)
@@ -412,12 +436,38 @@ sgcbContrast <- function(counts, sample_data, group_col, contrast_levels,
     res
 }
 
+#' Pairwise deployment wrapper for SGCB
+#'
+#' Enumerates all requested two-level comparisons from \code{group_col} and
+#' applies \code{sgcbContrast()} to each pair. Each element of the returned
+#' list is still a separate two-group SGCB analysis.
+#'
+#' @param counts Count matrix (genes x samples)
+#' @param sample_data Sample metadata with one row per sample
+#' @param group_col Column in \code{sample_data} defining the grouping factor
+#' @param sample_subset Optional logical, numeric, or character subset applied before pairwise contrasts are formed
+#' @param contrast_levels Optional character vector restricting the levels to be paired
+#' @inheritParams sgcbDE
+#' @return A named list of \code{SGCBResults} objects with class \code{SGCBContrastList}
+#' @export
+#' @examples
+#' \donttest{
+#' set.seed(1)
+#' counts <- matrix(rnbinom(300 * 9, mu = 150, size = 8), nrow = 300, ncol = 9)
+#' colnames(counts) <- paste0("sample_", seq_len(9))
+#' sample_data <- data.frame(
+#'   condition = c(rep("A", 3), rep("B", 3), rep("C", 3)),
+#'   row.names = colnames(counts)
+#' )
+#' res_list <- sgcbPairwise(counts, sample_data, group_col = "condition")
+#' names(res_list)
+#' }
 sgcbPairwise <- function(counts, sample_data, group_col,
                          sample_subset = NULL, contrast_levels = NULL,
                          alpha = 0.1, use_manifold_test = TRUE,
                          bootstrap = FALSE, n_boot = 200,
                          min_count = 10, min_samples = 2,
-                         config = NULL, ...) {
+                        config = NULL, ...) {
     counts <- as.matrix(counts)
     sample_data <- .align_sgcb_sample_data(counts, sample_data)
     idx_subset <- .resolve_sgcb_subset(sample_data, counts, sample_subset)
@@ -489,7 +539,7 @@ print.SGCBResults <- function(x, ...) {
     if (!is.null(df_prior)) cat("Prior df:", round(df_prior, 1), "\n")
     if (isTRUE(attr(x, "bootstrap"))) cat("Bootstrap CI: available\n")
     cat("\nTop genes:\n")
-    top <- head(x[order(x$pvalue), c("log2FoldChange", "pvalue", "padj")], 6)
+    top <- utils::head(x[order(x$pvalue), c("log2FoldChange", "pvalue", "padj")], 6)
     print.data.frame(top)
     invisible(x)
 }

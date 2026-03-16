@@ -18,7 +18,7 @@ mean-shift and distribution-shift evidence in one result table.
 ## Installation
 
 ```r
-# Install from GitHub (recommended)
+# Install from GitHub
 devtools::install_github("aeqby770/SGCB")
 
 # Or clone and install locally
@@ -26,11 +26,11 @@ devtools::install_github("aeqby770/SGCB")
 # R CMD INSTALL SGCB
 ```
 
-**Requirements**: R >= 4.0.0, Rcpp. A C++ compiler with C++17 and OpenMP support is recommended.
+**Requirements**: R >= 4.0.0 and Rcpp. A C++ compiler with C++17 and OpenMP support is recommended.
 
-## Complete Runnable Example
+## Example
 
-Run the following code in R to verify installation and output format:
+The example below illustrates the expected input structure and output format:
 
 ```r
 library(SGCB)
@@ -66,8 +66,8 @@ head(sig[, c("gene_id", "log2FoldChange", "log2FC_shrunk", "pvalue", "padj",
 
 ## The `sgcbDE()` Function
 
-`sgcbDE()` is the main user-facing entry point. It handles filtering,
-normalization, GG fitting, testing, multiple-testing correction, and shrinkage.
+`sgcbDE()` is the main entry point. It performs filtering, normalization,
+GG fitting, hypothesis testing, multiple-testing correction, and effect-size shrinkage.
 
 ```r
 res <- sgcbDE(
@@ -136,7 +136,7 @@ These wrappers do **not** make SGCB a multi-factor inference engine. They only s
 
 ### Which columns should I use?
 
-For most users, the workflow is:
+Typical usage is:
 
 1. **Call DE genes** → filter on `padj < 0.05`
 2. **Rank genes** → sort by `padj` or `SGCB_Score` (descending)
@@ -155,9 +155,9 @@ The DV/DG/DD channels are best treated as exploratory secondary signals. They ca
 
 | Column | What it is | When to use |
 |--------|-----------|-------------|
-| `log2FoldChange` | Raw: mean(log2 treat) - mean(log2 ctrl) | Debugging only |
-| `log2FC_gg` | GG-model-based: log2(E[X]_treat / E[X]_ctrl) from fitted GG parameters | Advanced: when GG fit is trusted |
-| **`log2FC_shrunk`** | **Cauchy-prior shrinkage of raw LFC** | **Use this for everything** (ranking, visualization, reporting) |
+| `log2FoldChange` | Raw: mean(log2 treat) - mean(log2 ctrl) | Inspection and diagnostics |
+| `log2FC_gg` | GG-model-based: log2(E[X]_treat / E[X]_ctrl) from fitted GG parameters | Use when the GG mean is the target estimand |
+| **`log2FC_shrunk`** | **Cauchy-prior shrinkage of raw LFC** | **Recommended for ranking, visualization, and reporting** |
 
 ### Core DE results
 
@@ -222,14 +222,14 @@ The DV/DG/DD channels are best treated as exploratory secondary signals. They ca
 
 ```r
 # --- Standard DE analysis ---
-# Significant DE genes (most common use case)
+# DE genes passing an adjusted p-value and effect-size threshold
 de_genes <- significantGenes(res, padj_cutoff = 0.05, lfc_cutoff = 1)
 
-# --- Advanced: distributional / variance changes ---
-# Genes with significant distributional changes (not just mean shift)
+# --- Distributional / variance changes ---
+# Genes with significant distributional changes
 dd_genes <- res[!is.na(res$padj_dd) & res$padj_dd < 0.05, ]
 
-# Genes with significant variance changes only
+# Genes with significant DV signal
 dv_genes <- res[!is.na(res$dv_padj) & res$dv_padj < 0.05, ]
 
 # --- Omnibus ranking (DE + DD combined) ---
@@ -244,11 +244,11 @@ plot(res$log2FC_shrunk, -log10(res$pvalue),
 abline(v = c(-1, 1), lty = 2, col = "blue")
 ```
 
-## Configuration (Advanced)
+## Configuration
 
-Most users can ignore this — defaults work well for typical RNA-seq.
+Most analyses can use the default configuration.
 
-Currently, the only SGCBConfig slot actively used by `sgcbDE()` is `bootB` (number of bootstrap replicates). Other slots (e.g., `maxIter`, `learningRate`, `nCores`) are defined in the class but are **not yet wired** to the C++ core — the C++ layer uses its own internal defaults.
+At present, the only `SGCBConfig` slot actively used by `sgcbDE()` is `bootB` (number of bootstrap replicates). Other slots (for example `maxIter`, `learningRate`, and `nCores`) are defined in the class for compatibility, but are not currently connected to the C++ core.
 
 ```r
 cfg <- SGCBConfig(bootB = 1000L)
@@ -294,7 +294,7 @@ SGCB/
 │   ├── parametric_bootstrap.cpp  # Smoothed bootstrap (small samples)
 │   ├── permutation.cpp    # Permutation + dropout permutation
 │   ├── adaptive_inference.cpp    # Adaptive variance shrinkage
-│   ├── sgcb_adam_optimizer.cpp   # Legacy optimizer path (kept for compatibility)
+│   ├── sgcb_adam_optimizer.cpp   # Legacy optimizer path
 │   ├── estimation_accel.cpp      # LOESS, TMM, tagwise dispersion
 │   ├── matrix_ops.cpp     # Parallel matrix operations
 │   ├── wide_shallow_ae.cpp       # Wide-shallow autoencoder

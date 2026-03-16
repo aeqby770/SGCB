@@ -2,7 +2,7 @@
 % Please edit documentation in R/differential.R
 \name{significantGenes}
 \alias{significantGenes}
-\title{Extract Significant Genes}
+\title{Extract significant genes}
 \usage{
 significantGenes(x, padj_cutoff = 0.1, lfc_cutoff = 0)
 }
@@ -17,7 +17,7 @@ significantGenes(x, padj_cutoff = 0.1, lfc_cutoff = 0)
 Subset of significant genes (data.frame)
 }
 \description{
-Extract significantly differentially expressed genes
+Extract significant genes
 }
 \examples{
 \donttest{
@@ -26,7 +26,6 @@ counts <- matrix(rnbinom(500 * 6, mu = 200, size = 10), nrow = 500, ncol = 6)
 rownames(counts) <- paste0("gene_", seq_len(500))
 counts[1:50, 4:6] <- counts[1:50, 4:6] * 3
 group <- rep(c("ctrl", "treat"), each = 3)
-
 res <- sgcbDE(counts, group)
 sig <- significantGenes(res, padj_cutoff = 0.05, lfc_cutoff = 1)
 nrow(sig)

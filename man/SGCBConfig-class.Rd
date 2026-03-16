@@ -3,7 +3,7 @@
 \docType{class}
 \name{SGCBConfig-class}
 \alias{SGCBConfig-class}
-\title{SGCBConfig Class}
+\title{SGCBConfig class}
 \description{
 Stores SGCB analysis configuration parameters
 }
@@ -18,11 +18,11 @@ Stores SGCB analysis configuration parameters
 
 \item{\code{maxIter}}{Maximum number of iterations}
 
-\item{\code{adamBeta1}}{Legacy optimizer parameter (currently unused by \code{sgcbDE})}
+\item{\code{adamBeta1}}{Legacy optimizer parameter (currently unused by \\code{sgcbDE})}
 
-\item{\code{adamBeta2}}{Legacy optimizer parameter (currently unused by \code{sgcbDE})}
+\item{\code{adamBeta2}}{Legacy optimizer parameter (currently unused by \\code{sgcbDE})}
 
-\item{\code{adamEps}}{Legacy optimizer parameter (currently unused by \code{sgcbDE})}
+\item{\code{adamEps}}{Legacy optimizer parameter (currently unused by \\code{sgcbDE})}
 
 \item{\code{weightDecay}}{Weight decay (L2 regularization)}
 

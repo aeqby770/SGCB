@@ -2,7 +2,7 @@
 % Please edit documentation in R/differential.R
 \name{sgcbDE}
 \alias{sgcbDE}
-\title{SGCB Differential Expression Analysis}
+\title{SGCB differential analysis for a two-group comparison}
 \usage{
 sgcbDE(
   counts,
@@ -20,13 +20,13 @@ sgcbDE(
 \arguments{
 \item{counts}{Count matrix (genes x samples)}
 
-\item{group}{Group vector (two-level factor or character)}
+\item{group}{Grouping vector (two-level factor or character)}
 
 \item{alpha}{FDR threshold, default 0.1}
 
 \item{use_manifold_test}{Whether to enable manifold distance test, default TRUE}
 
-\item{bootstrap}{Whether to compute Calibrated Bootstrap confidence intervals, default FALSE}
+\item{bootstrap}{Whether to compute calibrated bootstrap CIs, default FALSE}
 
 \item{n_boot}{Number of bootstrap replicates, default 200 (only used when bootstrap=TRUE)}
 
@@ -36,16 +36,17 @@ sgcbDE(
 
 \item{config}{SGCBConfig configuration object (optional)}
 
-\item{...}{Backward-compatible parameters (method, n_dropout, dropout_rate etc. are deprecated, silently ignored)}
+\item{...}{Backward-compatible parameters that are currently accepted but not used by the current implementation}
 }
 \value{
-SGCBResults object
+An object of class \code{SGCBResults}
 }
 \description{
-Information-geometric differential expression analysis based on the Generalized Gamma distribution.
-Fits GG(alpha, beta, gamma) parameters via natural gradient + hierarchical Bayes MAP,
-limma-style fitFDist variance shrinkage, Firth penalty (n<=10),
-and manifold distance Wald chi-squared test for distributional shift detection (active when n >= 6 per group; reported as diagnostic channel \code{pvalue_manifold}).
+Fits gene-wise generalized gamma (GG) models for a two-group RNA-seq
+contrast and returns mean-shift and distribution-shift summaries in one
+result table. The pipeline uses natural-gradient hierarchical MAP
+estimation, limma-style variance moderation, and optional diagnostic
+channels derived from the fitted GG parameters.
 }
 \examples{
 \donttest{
@@ -54,11 +55,8 @@ counts <- matrix(rnbinom(500 * 6, mu = 200, size = 10), nrow = 500, ncol = 6)
 rownames(counts) <- paste0("gene_", seq_len(500))
 counts[1:50, 4:6] <- counts[1:50, 4:6] * 3
 group <- rep(c("ctrl", "treat"), each = 3)
-
 res <- sgcbDE(counts, group)
 print(res)
-
 sig <- significantGenes(res, padj_cutoff = 0.05)
-head(sig[, c("gene_id", "log2FoldChange", "padj", "SGCB_Score")])
 }
 }

@@ -62,7 +62,7 @@ SGCBConfig <- function(
   seed = 12345L
 ) {
 
-  new("SGCBConfig",
+  methods::new("SGCBConfig",
     epsilon = epsilon,
     hiddenWidth = as.integer(hiddenWidth),
     learningRate = learningRate,
