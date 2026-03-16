@@ -32,59 +32,60 @@ SGCBConfig(
 )
 }
 \arguments{
-\item{epsilon}{Numerical stability constant}
+\item{epsilon}{Stored numerical-stability constant (currently not used by \code{sgcbDE})}
 
-\item{hiddenWidth}{Hidden layer width}
+\item{hiddenWidth}{Stored hidden-layer width (currently not used by \code{sgcbDE})}
 
-\item{learningRate}{Learning rate}
+\item{learningRate}{Stored learning rate (currently not used by \code{sgcbDE})}
 
-\item{maxIter}{Maximum number of iterations}
+\item{maxIter}{Stored iteration limit (currently not used by \code{sgcbDE})}
 
-\item{adamBeta1}{Legacy optimizer parameter (currently unused by \\code{sgcbDE})}
+\item{adamBeta1}{Stored legacy optimizer parameter (currently not used by \code{sgcbDE})}
 
-\item{adamBeta2}{Legacy optimizer parameter (currently unused by \\code{sgcbDE})}
+\item{adamBeta2}{Stored legacy optimizer parameter (currently not used by \code{sgcbDE})}
 
-\item{adamEps}{Legacy optimizer parameter (currently unused by \\code{sgcbDE})}
+\item{adamEps}{Stored legacy optimizer parameter (currently not used by \code{sgcbDE})}
 
-\item{weightDecay}{Weight decay (L2 regularization)}
+\item{weightDecay}{Stored weight-decay parameter (currently not used by \code{sgcbDE})}
 
-\item{gradClip}{Gradient clipping threshold}
+\item{gradClip}{Stored gradient-clipping threshold (currently not used by \code{sgcbDE})}
 
-\item{lrDecayFactor}{Learning rate decay factor}
+\item{lrDecayFactor}{Stored learning-rate decay factor (currently not used by \code{sgcbDE})}
 
-\item{lrDecayPatience}{Patience for LR decay (epochs)}
+\item{lrDecayPatience}{Stored learning-rate decay patience (currently not used by \code{sgcbDE})}
 
-\item{earlyStopPatience}{Patience for early stopping (epochs)}
+\item{earlyStopPatience}{Stored early-stopping patience (currently not used by \code{sgcbDE})}
 
-\item{minDelta}{Minimum improvement for early stopping}
+\item{minDelta}{Stored early-stopping tolerance (currently not used by \code{sgcbDE})}
 
-\item{bootB}{Number of bootstrap replicates}
+\item{bootB}{Number of bootstrap replicates used when \code{bootstrap = TRUE}}
 
-\item{mGrid}{m search grid for calibrated bootstrap}
+\item{mGrid}{Stored calibrated-bootstrap grid (currently not used by \code{sgcbDE})}
 
-\item{cbReps}{Calibrated bootstrap repetitions}
+\item{cbReps}{Stored calibrated-bootstrap repetitions (currently not used by \code{sgcbDE})}
 
-\item{cbTargetCoverage}{Target coverage for calibrated bootstrap}
+\item{cbTargetCoverage}{Stored calibrated-bootstrap target coverage (currently not used by \code{sgcbDE})}
 
-\item{ciLevel}{Confidence interval level}
+\item{ciLevel}{Stored confidence-interval level (currently not used by \code{sgcbDE})}
 
-\item{paramLo}{Lower bound for parameter clipping}
+\item{paramLo}{Stored lower parameter bound (currently not used by \code{sgcbDE})}
 
-\item{paramHi}{Upper bound for parameter clipping}
+\item{paramHi}{Stored upper parameter bound (currently not used by \code{sgcbDE})}
 
-\item{nDropout}{Number of dropout replicates}
+\item{nDropout}{Stored dropout replicate count (currently not used by \code{sgcbDE})}
 
-\item{dropoutRate}{Dropout rate}
+\item{dropoutRate}{Stored dropout rate (currently not used by \code{sgcbDE})}
 
-\item{nCores}{Number of parallel cores}
+\item{nCores}{Stored parallel-core count (currently not used by \code{sgcbDE})}
 
-\item{seed}{Random seed}
+\item{seed}{Stored random seed (currently not used by \code{sgcbDE})}
 }
 \value{
 SGCBConfig object
 }
 \description{
-Create SGCB analysis configuration. In the current sgcbDE pipeline,
-only \\code{bootB} is actively used; most optimizer-related slots are kept for
-backward compatibility.
+Create an \code{SGCBConfig} object. In the current \code{sgcbDE}
+pipeline, only \code{bootB} is consumed directly by the analysis. All other
+slots are retained for object compatibility, future extension, or legacy code
+paths, but are not currently read by the main two-group inference routine.
 }

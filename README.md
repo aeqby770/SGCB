@@ -134,6 +134,19 @@ These wrappers do **not** make SGCB a multi-factor inference engine. They only s
 
 ## Output Columns (46 base + 5 with bootstrap)
 
+### Output Quick Reference
+
+| Task | Recommended columns |
+|------|---------------------|
+| Primary DE calling | `padj`, `pvalue_t`, `stat` |
+| Effect-size reporting | `log2FC_shrunk`, `lfcSE`, `baseMean` |
+| Model-based mean summary | `log2FC_gg`, `pvalue_mu_wald`, `padj_mu_wald` |
+| Distributional follow-up | `dv_padj`, `dg_gamma_padj`, `padj_dd` |
+| Omnibus ranking | `SGCB_Score`, `SGCB_Score_p`, `SGCB_Score_padj` |
+| Parameter inspection | `ctrl_alpha`, `ctrl_beta`, `ctrl_gamma`, `treat_alpha`, `treat_beta`, `treat_gamma` |
+| Diagnostic review | `pvalue_manifold`, `padj_manifold`, `geodesic_dist` |
+| Bootstrap output | `T_obs`, `T_null_median`, `T_CI_lo`, `T_CI_hi`, `pvalue_bootstrap` |
+
 ### Which columns should I use?
 
 Typical usage is:
@@ -248,7 +261,7 @@ abline(v = c(-1, 1), lty = 2, col = "blue")
 
 Most analyses can use the default configuration.
 
-At present, the only `SGCBConfig` slot actively used by `sgcbDE()` is `bootB` (number of bootstrap replicates). Other slots (for example `maxIter`, `learningRate`, and `nCores`) are defined in the class for compatibility, but are not currently connected to the C++ core.
+At present, the only `SGCBConfig` slot consumed directly by `sgcbDE()` is `bootB` (number of bootstrap replicates). All other slots are stored in the object for compatibility or future extension, but are not currently read by the main two-group inference path.
 
 ```r
 cfg <- SGCBConfig(bootB = 1000L)

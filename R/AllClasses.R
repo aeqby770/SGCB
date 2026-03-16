@@ -6,31 +6,35 @@
 # SGCBConfig: configuration class
 # -----------------------------------------------------------------------------
 #' @title SGCBConfig class
-#' @description Stores SGCB analysis configuration parameters
-#' @slot epsilon Numerical stability constant
-#' @slot hiddenWidth Hidden layer width
-#' @slot learningRate Learning rate
-#' @slot maxIter Maximum number of iterations
-#' @slot adamBeta1 Legacy optimizer parameter (currently unused by \\code{sgcbDE})
-#' @slot adamBeta2 Legacy optimizer parameter (currently unused by \\code{sgcbDE})
-#' @slot adamEps Legacy optimizer parameter (currently unused by \\code{sgcbDE})
-#' @slot weightDecay Weight decay (L2 regularization)
-#' @slot gradClip Gradient clipping threshold
-#' @slot lrDecayFactor Learning rate decay factor
-#' @slot lrDecayPatience Patience for LR decay (epochs)
-#' @slot earlyStopPatience Patience for early stopping (epochs)
-#' @slot minDelta Minimum improvement for early stopping
-#' @slot bootB Number of bootstrap replicates
-#' @slot mGrid m search grid for calibrated bootstrap
-#' @slot cbReps Calibrated bootstrap repetitions
-#' @slot cbTargetCoverage Target coverage for calibrated bootstrap
-#' @slot ciLevel Confidence interval level
-#' @slot paramLo Lower bound for parameter clipping
-#' @slot paramHi Upper bound for parameter clipping
-#' @slot nDropout Number of dropout replicates
-#' @slot dropoutRate Dropout rate
-#' @slot nCores Number of parallel cores
-#' @slot seed Random seed
+#' @description Stores SGCB analysis configuration parameters. In the current
+#' implementation, \code{sgcbDE()} reads only the \code{bootB} slot directly.
+#' The remaining slots are stored for compatibility, legacy code paths, or
+#' future extensions, but are not consumed by the main two-group inference
+#' routine.
+#' @slot epsilon Stored numerical-stability constant
+#' @slot hiddenWidth Stored hidden-layer width
+#' @slot learningRate Stored learning rate
+#' @slot maxIter Stored maximum number of iterations
+#' @slot adamBeta1 Stored legacy optimizer parameter
+#' @slot adamBeta2 Stored legacy optimizer parameter
+#' @slot adamEps Stored legacy optimizer parameter
+#' @slot weightDecay Stored weight-decay parameter
+#' @slot gradClip Stored gradient-clipping threshold
+#' @slot lrDecayFactor Stored learning-rate decay factor
+#' @slot lrDecayPatience Stored patience for learning-rate decay
+#' @slot earlyStopPatience Stored patience for early stopping
+#' @slot minDelta Stored minimum improvement threshold
+#' @slot bootB Number of bootstrap replicates used when \code{bootstrap = TRUE}
+#' @slot mGrid Stored calibrated-bootstrap grid
+#' @slot cbReps Stored calibrated-bootstrap repetitions
+#' @slot cbTargetCoverage Stored calibrated-bootstrap target coverage
+#' @slot ciLevel Stored confidence-interval level
+#' @slot paramLo Stored lower bound for parameter clipping
+#' @slot paramHi Stored upper bound for parameter clipping
+#' @slot nDropout Stored dropout replicate count
+#' @slot dropoutRate Stored dropout rate
+#' @slot nCores Stored parallel-core count
+#' @slot seed Stored random seed
 #' @exportClass SGCBConfig
 setClass("SGCBConfig",
   slots = c(

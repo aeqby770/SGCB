@@ -5,57 +5,61 @@
 \alias{SGCBConfig-class}
 \title{SGCBConfig class}
 \description{
-Stores SGCB analysis configuration parameters
+Stores SGCB analysis configuration parameters. In the current
+implementation, \code{sgcbDE()} reads only the \code{bootB} slot directly.
+The remaining slots are stored for compatibility, legacy code paths, or
+future extensions, but are not consumed by the main two-group inference
+routine.
 }
 \section{Slots}{
 
 \describe{
-\item{\code{epsilon}}{Numerical stability constant}
+\item{\code{epsilon}}{Stored numerical-stability constant}
 
-\item{\code{hiddenWidth}}{Hidden layer width}
+\item{\code{hiddenWidth}}{Stored hidden-layer width}
 
-\item{\code{learningRate}}{Learning rate}
+\item{\code{learningRate}}{Stored learning rate}
 
-\item{\code{maxIter}}{Maximum number of iterations}
+\item{\code{maxIter}}{Stored maximum number of iterations}
 
-\item{\code{adamBeta1}}{Legacy optimizer parameter (currently unused by \\code{sgcbDE})}
+\item{\code{adamBeta1}}{Stored legacy optimizer parameter}
 
-\item{\code{adamBeta2}}{Legacy optimizer parameter (currently unused by \\code{sgcbDE})}
+\item{\code{adamBeta2}}{Stored legacy optimizer parameter}
 
-\item{\code{adamEps}}{Legacy optimizer parameter (currently unused by \\code{sgcbDE})}
+\item{\code{adamEps}}{Stored legacy optimizer parameter}
 
-\item{\code{weightDecay}}{Weight decay (L2 regularization)}
+\item{\code{weightDecay}}{Stored weight-decay parameter}
 
-\item{\code{gradClip}}{Gradient clipping threshold}
+\item{\code{gradClip}}{Stored gradient-clipping threshold}
 
-\item{\code{lrDecayFactor}}{Learning rate decay factor}
+\item{\code{lrDecayFactor}}{Stored learning-rate decay factor}
 
-\item{\code{lrDecayPatience}}{Patience for LR decay (epochs)}
+\item{\code{lrDecayPatience}}{Stored patience for learning-rate decay}
 
-\item{\code{earlyStopPatience}}{Patience for early stopping (epochs)}
+\item{\code{earlyStopPatience}}{Stored patience for early stopping}
 
-\item{\code{minDelta}}{Minimum improvement for early stopping}
+\item{\code{minDelta}}{Stored minimum improvement threshold}
 
-\item{\code{bootB}}{Number of bootstrap replicates}
+\item{\code{bootB}}{Number of bootstrap replicates used when \code{bootstrap = TRUE}}
 
-\item{\code{mGrid}}{m search grid for calibrated bootstrap}
+\item{\code{mGrid}}{Stored calibrated-bootstrap grid}
 
-\item{\code{cbReps}}{Calibrated bootstrap repetitions}
+\item{\code{cbReps}}{Stored calibrated-bootstrap repetitions}
 
-\item{\code{cbTargetCoverage}}{Target coverage for calibrated bootstrap}
+\item{\code{cbTargetCoverage}}{Stored calibrated-bootstrap target coverage}
 
-\item{\code{ciLevel}}{Confidence interval level}
+\item{\code{ciLevel}}{Stored confidence-interval level}
 
-\item{\code{paramLo}}{Lower bound for parameter clipping}
+\item{\code{paramLo}}{Stored lower bound for parameter clipping}
 
-\item{\code{paramHi}}{Upper bound for parameter clipping}
+\item{\code{paramHi}}{Stored upper bound for parameter clipping}
 
-\item{\code{nDropout}}{Number of dropout replicates}
+\item{\code{nDropout}}{Stored dropout replicate count}
 
-\item{\code{dropoutRate}}{Dropout rate}
+\item{\code{dropoutRate}}{Stored dropout rate}
 
-\item{\code{nCores}}{Number of parallel cores}
+\item{\code{nCores}}{Stored parallel-core count}
 
-\item{\code{seed}}{Random seed}
+\item{\code{seed}}{Stored random seed}
 }}
 
