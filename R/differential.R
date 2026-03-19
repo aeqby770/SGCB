@@ -322,7 +322,7 @@ sgcbDE <- function(counts, group, alpha = 0.1,
     # Metadata
     attr(results, "alpha") <- alpha
     attr(results, "method") <- "infogeom"
-    attr(results, "df_prior") <- result$df_total
+    attr(results, "df_prior") <- result$df_total - (n_ctrl + n_treat - 2)
     attr(results, "n_ctrl") <- n_ctrl
     attr(results, "n_treat") <- n_treat
     attr(results, "n_filtered") <- sum(!keep)
