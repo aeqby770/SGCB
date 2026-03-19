@@ -266,7 +266,7 @@ Rcpp::NumericMatrix fisher_info_diag(Rcpp::NumericVector alpha,
     double trigamma_a = R::trigamma(a);
     info(i, 0) = n_samples * trigamma_a;
     info(i, 1) = n_samples * a * g * g / (b * b);
-    info(i, 2) = n_samples / (g * g);
+    info(i, 2) = n_samples * (1.0 + a * trigamma_a) / (g * g);
   }
   return info;
 }

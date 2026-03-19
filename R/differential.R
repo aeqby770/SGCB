@@ -200,8 +200,8 @@ sgcbDE <- function(counts, group, alpha = 0.1,
         b_ctrl <- pmax(result$ctrl_beta, eps)
         g_ctrl <- pmax(result$ctrl_gamma, 0.05)
         se_log_a <- 1 / sqrt(n_ctrl * trigamma(a_ctrl) * a_ctrl^2 + eps)
-        se_log_b <- 1 / sqrt(n_ctrl * a_ctrl * g_ctrl + eps)
-        se_log_g <- 1 / sqrt(n_ctrl * (a_ctrl / g_ctrl^2 + eps) + eps)
+        se_log_b <- 1 / sqrt(n_ctrl * a_ctrl * g_ctrl^2 + eps)
+        se_log_g <- 1 / sqrt(n_ctrl * (1 + a_ctrl * trigamma(a_ctrl)) + eps)
 
         T_null_all <- matrix(NA_real_, n_genes, B)
         sapply(seq_len(B), function(b) {
