@@ -88,11 +88,14 @@ inline double lgamma(double x) {
 // Tetragamma: psi''(x) = d/dx psi'(x), used for Newton iteration of trigamma inverse
 // Asymptotic expansion + recurrence, accuracy ~1e-8
 inline double tetragamma(double x) {
+    // ψ''(x) < 0 for all x > 0
+    // Recurrence: ψ''(x) = ψ''(x+1) - 2/x³
     double result = 0.0;
     while (x < 8.0) {
-        result += 2.0 / (x * x * x);
+        result -= 2.0 / (x * x * x);
         x += 1.0;
     }
+    // Asymptotic expansion: ψ''(x) = -1/x² - 1/x³ - 1/(2x⁴) + 1/(6x⁶)
     double x2 = x * x;
     double x3 = x2 * x;
     double x4 = x2 * x2;
@@ -104,6 +107,9 @@ inline double tetragamma(double x) {
 // Trigamma inverse: solve psi'(y) = x (Newton-Raphson)
 // Reference: limma::trigammaInverse (Smyth 2004)
 inline double trigamma_inverse(double x) {
+    // Solve ψ'(y) = x for y, using Newton on 1/ψ'(y) = 1/x
+    // Newton step: Δy = ψ'(y)·(1 - ψ'(y)/x) / (-ψ''(y))
+    // Reference: limma::trigammaInverse (Smyth 2004)
     const double eps = 1e-8;
     if (x > 1e7) return 1.0 / std::sqrt(x);
     if (x < 1e-6) return 1.0 / x;
@@ -112,8 +118,11 @@ inline double trigamma_inverse(double x) {
     
     for (int iter = 0; iter < 50; iter++) {
         double tri = trigamma(y);
-        double tet = tetragamma(y);
+        double tet = tetragamma(y);  // tet < 0
         if (std::abs(tet) < eps) break;
+        // Newton on g(y) = 1/ψ'(y) - 1/x:
+        // Δy = -g/g' = (1/ψ'-1/x)·ψ'²/ψ'' = ψ'·(1-ψ'/x)/ψ''
+        // ψ'' < 0 naturally provides correct direction
         double dif = tri * (1.0 - tri / x) / tet;
         y += dif;
         y = std::max(y, eps);

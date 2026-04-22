@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <vector>
 #include <numeric>
+#include <limits>
 #include "fast_special.h"
 #ifdef _OPENMP
 #include <omp.h>
@@ -85,15 +86,14 @@ FisherMatrix3x3 compute_fisher_gg(double alpha, double beta, double gamma, int n
     double psi1_a = fast_special::trigamma(alpha);  // ψ'(α)
     double psi_a = fast_special::digamma(alpha);    // ψ(α)
     
-    const double euler_gamma = 0.5772156649015329;
-    
-    // Fisher information matrix elements (Lawless 1980)
+    // Fisher information matrix elements for GG(α,β,γ)
+    // Derived from E[-∂²ℓ/∂θ_i∂θ_j] with u=(x/β)^γ ~ Gamma(α,1)
     F.I_aa = n * psi1_a;
     F.I_bb = n * alpha * gamma * gamma / (beta * beta);
-    F.I_gg = n * (1.0 + alpha * psi1_a) / (gamma * gamma);
+    F.I_gg = n * (1.0 + alpha * psi_a * psi_a + 2.0 * psi_a + alpha * psi1_a) / (gamma * gamma);
     F.I_ab = n * gamma / beta;
-    F.I_ag = -n * (psi_a - euler_gamma) / gamma;
-    F.I_bg = -n * alpha / beta;
+    F.I_ag = -n * psi_a / gamma;
+    F.I_bg = -n * (1.0 + alpha * psi_a) / beta;
     
     return F;
 }
@@ -248,6 +248,269 @@ struct InfoGeomConfig {
 };
 
 // =============================================================================
+// Robust profile-likelihood initialization
+//
+// Core ideas absorbed from recent GG estimation literature:
+//   1) Reparameterize via Y = X^gamma -> Gamma(alpha, theta)
+//   2) Profile out alpha/theta for fixed gamma
+//   3) Solve alpha by 1D root: log(alpha)-psi(alpha)=c
+//   4) Optimize gamma with bounded 1D search (grid + golden section)
+//   5) Use Harrell-Davis quantile standardization + robust weights
+// =============================================================================
+
+struct HDWeights {
+    std::vector<double> q25;
+    std::vector<double> q50;
+    std::vector<double> q75;
+};
+
+inline double median_vec(std::vector<double> x) {
+    const int n = x.size();
+    std::nth_element(x.begin(), x.begin() + n / 2, x.end());
+    return x[n / 2];
+}
+
+inline HDWeights build_hd_weights(int n, double eps = 1e-12) {
+    HDWeights w;
+    w.q25.resize(n);
+    w.q50.resize(n);
+    w.q75.resize(n);
+
+    auto fill_one = [n, eps](double p, std::vector<double>& out) {
+        double a = (n + 1.0) * p;
+        double b = (n + 1.0) * (1.0 - p);
+        double prev = 0.0;
+        for (int i = 1; i <= n; i++) {
+            double u = static_cast<double>(i) / static_cast<double>(n);
+            double cur = R::pbeta(u, a, b, 1, 0);
+            out[i - 1] = std::max(0.0, cur - prev);
+            prev = cur;
+        }
+        double s = std::accumulate(out.begin(), out.end(), 0.0);
+        if (s < eps) {
+            for (int i = 0; i < n; i++) out[i] = 1.0 / static_cast<double>(n);
+        } else {
+            for (int i = 0; i < n; i++) out[i] /= s;
+        }
+    };
+
+    fill_one(0.25, w.q25);
+    fill_one(0.50, w.q50);
+    fill_one(0.75, w.q75);
+    return w;
+}
+
+inline double hd_quantile_sorted(const std::vector<double>& x_sorted,
+                                 const std::vector<double>& w) {
+    const int n = x_sorted.size();
+    double q = 0.0;
+    for (int i = 0; i < n; i++) q += w[i] * x_sorted[i];
+    return q;
+}
+
+inline double solve_gamma_shape_from_c(double c, double eps = 1e-8) {
+    // Gamma shape MLE equation (Minka-style initialization + Newton solve):
+    //   log(alpha) - psi(alpha) = c,  c = log(E[Y]) - E[log(Y)]
+    double cc = std::max(c, eps);
+    double alpha = (3.0 - cc + std::sqrt((cc - 3.0) * (cc - 3.0) + 24.0 * cc)) / (12.0 * cc);
+    alpha = std::max(alpha, 0.05);
+
+    for (int it = 0; it < 40; it++) {
+        double f = std::log(alpha) - fast_special::digamma(alpha) - cc;
+        double fp = 1.0 / alpha - fast_special::trigamma(alpha);
+        double denom = fp;
+        if (!std::isfinite(denom) || std::abs(denom) < eps) {
+            denom = (denom >= 0.0) ? eps : -eps;
+        }
+        double step = f / denom;
+        step = std::max(-0.5 * alpha, std::min(0.5 * alpha, step));
+        double anew = alpha - step;
+        anew = std::max(anew, 0.05);
+        if (std::abs(anew - alpha) < 1e-10 * std::max(1.0, alpha)) {
+            alpha = anew;
+            break;
+        }
+        alpha = anew;
+    }
+    return std::max(alpha, 0.05);
+}
+
+struct ProfileFitResult {
+    double log_alpha;
+    double log_beta;
+    double log_gamma;
+    double loglik;
+};
+
+static inline ProfileFitResult profile_fit_gg_gene(const NumericMatrix& X,
+                                                   int gene_idx,
+                                                   bool fix_gamma,
+                                                   const HDWeights& hdw,
+                                                   double min_gamma = 0.2,
+                                                   double max_gamma = 5.0,
+                                                   double eps = 1e-8) {
+    const int n_samples = X.ncol();
+    std::vector<double> x_raw(n_samples);
+    for (int j = 0; j < n_samples; j++) x_raw[j] = std::max(static_cast<double>(X(gene_idx, j)), eps);
+
+    std::vector<double> x_sorted = x_raw;
+    std::sort(x_sorted.begin(), x_sorted.end());
+
+    double q25 = hd_quantile_sorted(x_sorted, hdw.q25);
+    double q50 = hd_quantile_sorted(x_sorted, hdw.q50);
+    double q75 = hd_quantile_sorted(x_sorted, hdw.q75);
+    q50 = std::max(q50, eps);
+    double iqr = std::max(q75 - q25, eps);
+    double lo = std::max(q25 - 4.0 * iqr, eps);
+    double hi = q75 + 4.0 * iqr;
+
+    std::vector<double> x_std(n_samples), logx_std(n_samples);
+    for (int j = 0; j < n_samples; j++) {
+        double xw = std::max(lo, std::min(hi, x_raw[j]));
+        x_std[j] = xw / q50;
+        logx_std[j] = std::log(std::max(x_std[j], eps));
+    }
+
+    double med_logx = median_vec(logx_std);
+    std::vector<double> abs_dev(n_samples);
+    for (int j = 0; j < n_samples; j++) abs_dev[j] = std::abs(logx_std[j] - med_logx);
+    double mad_logx = 1.4826 * std::max(median_vec(abs_dev), eps);
+    double c_robust = 2.5 * mad_logx;
+
+    auto eval_profile_gamma = [&](double g, double& alpha_out, double& beta_out, double& ll_out) {
+        if (g < min_gamma || g > max_gamma || !std::isfinite(g)) {
+            alpha_out = 1.0; beta_out = q50; ll_out = -std::numeric_limits<double>::infinity();
+            return;
+        }
+
+        double w_sum = 0.0, wy_sum = 0.0, wlogy_sum = 0.0;
+        for (int j = 0; j < n_samples; j++) {
+            double rz = std::abs(logx_std[j] - med_logx) / std::max(c_robust, eps);
+            double w = 1.0 / (1.0 + rz * rz);
+            double logy = g * logx_std[j];
+            double y = std::exp(logy);
+            w_sum += w;
+            wy_sum += w * y;
+            wlogy_sum += w * logy;
+        }
+        w_sum = std::max(w_sum, eps);
+        double mean_y = std::max(wy_sum / w_sum, eps);
+        double mean_logy = wlogy_sum / w_sum;
+
+        double c = std::max(std::log(mean_y) - mean_logy, eps);
+        double alpha = solve_gamma_shape_from_c(c, eps);
+        double theta = std::max(mean_y / alpha, eps);
+        double beta_std = std::pow(theta, 1.0 / g);
+        double beta = std::max(beta_std * q50, eps);
+
+        LogSpaceGGParams params;
+        params.log_alpha = std::log(alpha);
+        params.log_beta = std::log(beta);
+        params.log_gamma = std::log(g);
+
+        double ll = 0.0;
+        for (int j = 0; j < n_samples; j++) ll += params.loglik(x_raw[j], eps);
+
+        alpha_out = alpha;
+        beta_out = beta;
+        ll_out = ll;
+    };
+
+    double best_g = 1.0;
+    double best_a = 1.0;
+    double best_b = q50;
+    double best_ll = -std::numeric_limits<double>::infinity();
+
+    if (fix_gamma) {
+        eval_profile_gamma(1.0, best_a, best_b, best_ll);
+        best_g = 1.0;
+    } else {
+        const int G_GRID = 15;
+        std::vector<double> g_grid(G_GRID);
+        double lg_lo = std::log(std::max(min_gamma, 0.21));
+        double lg_hi = std::log(std::min(max_gamma, 4.5));
+        for (int k = 0; k < G_GRID; k++) {
+            double t = static_cast<double>(k) / static_cast<double>(G_GRID - 1);
+            g_grid[k] = std::exp(lg_lo + t * (lg_hi - lg_lo));
+        }
+
+        int best_k = 0;
+        for (int k = 0; k < G_GRID; k++) {
+            double a_k, b_k, ll_k;
+            eval_profile_gamma(g_grid[k], a_k, b_k, ll_k);
+            if (ll_k > best_ll) {
+                best_ll = ll_k;
+                best_g = g_grid[k];
+                best_a = a_k;
+                best_b = b_k;
+                best_k = k;
+            }
+        }
+
+        double left = g_grid[std::max(0, best_k - 1)];
+        double right = g_grid[std::min(G_GRID - 1, best_k + 1)];
+        if (right - left < 1e-8) {
+            left = std::max(min_gamma, best_g * 0.7);
+            right = std::min(max_gamma, best_g * 1.3);
+        }
+
+        const double phi = (std::sqrt(5.0) - 1.0) / 2.0;
+        double x1 = right - phi * (right - left);
+        double x2 = left + phi * (right - left);
+        double a1, b1, f1, a2, b2, f2;
+        eval_profile_gamma(x1, a1, b1, f1);
+        eval_profile_gamma(x2, a2, b2, f2);
+
+        for (int it = 0; it < 28; it++) {
+            if (f1 < f2) {
+                left = x1;
+                x1 = x2;
+                f1 = f2;
+                x2 = left + phi * (right - left);
+                eval_profile_gamma(x2, a2, b2, f2);
+            } else {
+                right = x2;
+                x2 = x1;
+                f2 = f1;
+                x1 = right - phi * (right - left);
+                eval_profile_gamma(x1, a1, b1, f1);
+            }
+        }
+
+        double g_final = 0.5 * (left + right);
+        double a_final, b_final, ll_final;
+        eval_profile_gamma(g_final, a_final, b_final, ll_final);
+        if (ll_final > best_ll) {
+            best_ll = ll_final;
+            best_g = g_final;
+            best_a = a_final;
+            best_b = b_final;
+        }
+    }
+
+    if (!std::isfinite(best_ll) || best_a <= 0 || best_b <= 0 || best_g <= 0) {
+        double sum_x = 0.0, sum_x2 = 0.0;
+        for (int j = 0; j < n_samples; j++) {
+            sum_x += x_raw[j];
+            sum_x2 += x_raw[j] * x_raw[j];
+        }
+        double mean_x = sum_x / n_samples;
+        double var_x = std::max(sum_x2 / n_samples - mean_x * mean_x, eps);
+        double cv2 = var_x / std::max(mean_x * mean_x, eps);
+        best_a = std::max(0.5, std::min(10.0, 1.0 / std::max(cv2, eps)));
+        best_g = fix_gamma ? 1.0 : std::max(0.5, std::min(3.0, 1.0 / std::sqrt(cv2 + eps)));
+        best_b = std::max(eps, mean_x / std::pow(best_a, 1.0 / best_g));
+    }
+
+    ProfileFitResult out;
+    out.log_alpha = std::log(std::max(best_a, 0.05));
+    out.log_beta = std::log(std::max(best_b, eps));
+    out.log_gamma = std::log(std::max(best_g, 0.05));
+    out.loglik = best_ll;
+    return out;
+}
+
+// =============================================================================
 // Core function: natural gradient GG parameter fitting
 // =============================================================================
 // [[Rcpp::export]]
@@ -272,34 +535,19 @@ List fit_gg_natural_gradient_cpp(NumericMatrix X,
     bool fix_gamma = use_gamma_submodel && (n_samples <= 5);
     bool use_firth = use_firth_override && (n_samples <= 10);
     
-    // Log-space parameter initialization
+    // Log-space parameter initialization (profile likelihood + robust HD standardization)
     std::vector<double> log_alpha(n_genes), log_beta(n_genes), log_gamma(n_genes);
-    
-    // Data-driven initialization
+    HDWeights hdw = build_hd_weights(n_samples, eps);
+
     #ifdef _OPENMP
     #pragma omp parallel for schedule(static)
     #endif
     for (int g = 0; g < n_genes; g++) {
-        double sum_x = 0, sum_x2 = 0, sum_logx = 0;
-        for (int j = 0; j < n_samples; j++) {
-            double xij = X(g, j) + eps;
-            sum_x += xij;
-            sum_x2 += xij * xij;
-            sum_logx += std::log(xij);
-        }
-        double mean_x = sum_x / n_samples;
-        double var_x = sum_x2 / n_samples - mean_x * mean_x;
-        double mean_logx = sum_logx / n_samples;
-        
-        // Method-of-moments initialization
-        double cv2 = var_x / (mean_x * mean_x + eps);
-        double init_alpha = std::max(0.5, std::min(10.0, 1.0 / cv2));
-        double init_gamma = fix_gamma ? 1.0 : std::max(0.5, std::min(3.0, 1.0 / std::sqrt(cv2 + eps)));
-        double init_beta = std::max(eps, mean_x / std::pow(init_alpha, 1.0 / init_gamma));
-        
-        log_alpha[g] = std::log(init_alpha);
-        log_beta[g] = std::log(init_beta);
-        log_gamma[g] = std::log(init_gamma);
+        ProfileFitResult init = profile_fit_gg_gene(X, g, fix_gamma, hdw,
+                                                    0.2, 5.0, eps);
+        log_alpha[g] = init.log_alpha;
+        log_beta[g] = init.log_beta;
+        log_gamma[g] = init.log_gamma;
     }
     
     // Adam state
@@ -463,6 +711,44 @@ List fit_gg_natural_gradient_cpp(NumericMatrix X,
         Named("n_iter") = cfg.n_iter,
         Named("lr") = cfg.lr,
         Named("use_natural_grad") = cfg.use_natural_grad
+    );
+}
+
+// =============================================================================
+// Profile-likelihood GG initializer (exported for diagnostics and ablation)
+// =============================================================================
+// [[Rcpp::export]]
+List fit_gg_profile_init_cpp(NumericMatrix X,
+                             bool use_gamma_submodel = true,
+                             double min_gamma = 0.2,
+                             double max_gamma = 5.0,
+                             double eps = 1e-8) {
+    const int n_genes = X.nrow();
+    const int n_samples = X.ncol();
+    bool fix_gamma = use_gamma_submodel && (n_samples <= 5);
+
+    HDWeights hdw = build_hd_weights(n_samples, eps);
+    NumericVector alpha_out(n_genes), beta_out(n_genes), gamma_out(n_genes), loglik_out(n_genes);
+
+    #ifdef _OPENMP
+    #pragma omp parallel for schedule(static)
+    #endif
+    for (int g = 0; g < n_genes; g++) {
+        ProfileFitResult init = profile_fit_gg_gene(X, g, fix_gamma, hdw, min_gamma, max_gamma, eps);
+        alpha_out[g] = std::exp(init.log_alpha);
+        beta_out[g] = std::exp(init.log_beta);
+        gamma_out[g] = std::exp(init.log_gamma);
+        loglik_out[g] = init.loglik;
+    }
+
+    return List::create(
+        Named("alpha") = alpha_out,
+        Named("beta") = beta_out,
+        Named("gamma") = gamma_out,
+        Named("loglik") = loglik_out,
+        Named("min_gamma") = min_gamma,
+        Named("max_gamma") = max_gamma,
+        Named("fix_gamma") = fix_gamma
     );
 }
 
@@ -640,26 +926,19 @@ List fit_gg_hierarchical_bayes_cpp(NumericMatrix X,
     bool fix_gamma = (n_samples <= 5);
     bool use_firth = (n_samples <= 10);
     
-    // Stage 1: fast MLE initialization
+    // Stage 1: robust profile-likelihood initialization
     std::vector<double> log_alpha(n_genes), log_beta(n_genes), log_gamma(n_genes);
-    
+    HDWeights hdw = build_hd_weights(n_samples, eps);
+
     #ifdef _OPENMP
     #pragma omp parallel for schedule(static)
     #endif
     for (int g = 0; g < n_genes; g++) {
-        double sum_x = 0, sum_x2 = 0;
-        for (int j = 0; j < n_samples; j++) {
-            double xij = X(g, j) + eps;
-            sum_x += xij;
-            sum_x2 += xij * xij;
-        }
-        double mean_x = sum_x / n_samples;
-        double var_x = sum_x2 / n_samples - mean_x * mean_x;
-        double cv2 = var_x / (mean_x * mean_x + eps);
-        
-        log_alpha[g] = std::log(std::max(0.5, std::min(10.0, 1.0 / cv2)));
-        log_gamma[g] = fix_gamma ? 0.0 : std::log(std::max(0.5, std::min(3.0, 1.0 / std::sqrt(cv2 + eps))));
-        log_beta[g] = std::log(std::max(eps, mean_x));
+        ProfileFitResult init = profile_fit_gg_gene(X, g, fix_gamma, hdw,
+                                                    0.2, 5.0, eps);
+        log_alpha[g] = init.log_alpha;
+        log_beta[g] = init.log_beta;
+        log_gamma[g] = init.log_gamma;
     }
     
     // Estimate hierarchical prior
@@ -847,26 +1126,19 @@ static List fit_gg_with_shared_prior(NumericMatrix X,
     bool fix_gamma = use_gamma_submodel && (n_samples <= 5);
     bool use_firth = use_firth_override && (n_samples <= 10);
     
-    // Fast MLE initialization
+    // Robust profile-likelihood initialization
     std::vector<double> log_alpha(n_genes), log_beta(n_genes), log_gamma(n_genes);
-    
+    HDWeights hdw = build_hd_weights(n_samples, eps);
+
     #ifdef _OPENMP
     #pragma omp parallel for schedule(static)
     #endif
     for (int g = 0; g < n_genes; g++) {
-        double sum_x = 0, sum_x2 = 0;
-        for (int j = 0; j < n_samples; j++) {
-            double xij = X(g, j) + eps;
-            sum_x += xij;
-            sum_x2 += xij * xij;
-        }
-        double mean_x = sum_x / n_samples;
-        double var_x = sum_x2 / n_samples - mean_x * mean_x;
-        double cv2 = var_x / (mean_x * mean_x + eps);
-        
-        log_alpha[g] = std::log(std::max(0.5, std::min(10.0, 1.0 / cv2)));
-        log_gamma[g] = fix_gamma ? 0.0 : std::log(std::max(0.5, std::min(3.0, 1.0 / std::sqrt(cv2 + eps))));
-        log_beta[g] = std::log(std::max(eps, mean_x));
+        ProfileFitResult init = profile_fit_gg_gene(X, g, fix_gamma, hdw,
+                                                    0.2, 5.0, eps);
+        log_alpha[g] = init.log_alpha;
+        log_beta[g] = init.log_beta;
+        log_gamma[g] = init.log_gamma;
     }
     
     // Use shared prior (no re-estimation)
@@ -1167,71 +1439,203 @@ List adaptive_squeeze_var_gg_informed_cpp(NumericVector vars,
 // Model: s²_g ~ s0² · F(df_residual, d0), posterior = (d0·s0² + df·s²_g)/(d0+df)
 // Reference: Smyth (2004) Stat. Appl. Genet. Mol. Biol., limma::squeezeVar()
 // =============================================================================
-// [[Rcpp::export]]
-List adaptive_squeeze_var_hierarchical_cpp(NumericVector vars,
-                                            NumericVector gene_means,
-                                            int n_samples,
-                                            double eps = 1e-8) {
+NumericVector wide_shallow_variance_prior_prototype_cpp(NumericVector vars,
+                                                        NumericVector gene_means,
+                                                        double eps = 1e-8) {
     const int n = vars.size();
-    int df_residual = std::max(n_samples - 2, 1);
-    
-    // =====================================================================
-    // Step 1: compute variance trend (correct order for limma-trend)
-    // Must be done before fitFDist; otherwise trend inflates Var[log(s²)] → d0 is suppressed
-    // Reference: internal logic of limma::eBayes(trend=TRUE)
-    // =====================================================================
-    const int N_BINS = std::min(50, std::max(5, n / 50));
-    
     std::vector<double> log_bm(n);
     for (int i = 0; i < n; i++) {
         log_bm[i] = std::log(std::max((double)gene_means[i], eps));
     }
-    
+
+    const int N_BINS = std::min(80, std::max(10, n / 30));
     std::vector<int> order(n);
     std::iota(order.begin(), order.end(), 0);
     std::sort(order.begin(), order.end(),
               [&](int a, int b) { return log_bm[a] < log_bm[b]; });
-    
-    std::vector<double> bin_center(N_BINS), bin_value(N_BINS);
+
+    std::vector<double> bin_center(N_BINS), bin_log_median(N_BINS);
     int genes_per_bin = n / N_BINS;
     for (int b = 0; b < N_BINS; b++) {
         int bstart = b * genes_per_bin;
         int bend = (b == N_BINS - 1) ? n : (b + 1) * genes_per_bin;
         int bsize = bend - bstart;
-        
+
         double sum_lbm = 0;
         std::vector<double> bvars(bsize);
         for (int i = 0; i < bsize; i++) {
             int g = order[bstart + i];
             sum_lbm += log_bm[g];
-            bvars[i] = std::max((double)vars[g], eps);
+            bvars[i] = std::log(std::max((double)vars[g], eps));
         }
         bin_center[b] = sum_lbm / bsize;
-        
+
         int bmid = bsize / 2;
         std::nth_element(bvars.begin(), bvars.begin() + bmid, bvars.end());
-        bin_value[b] = bvars[bmid];
+        bin_log_median[b] = bvars[bmid];
+    }
+
+    double bc_q25 = bin_center[(int)(0.25 * N_BINS)];
+    double bc_q75 = bin_center[(int)(0.75 * N_BINS)];
+    double bandwidth = std::max((bc_q75 - bc_q25) / 1.349, 0.1);
+
+    const int W = std::min(200, std::max(10, (int)std::ceil(std::sqrt((double)N_BINS * 10.0))));
+    const double inv_sqrt_W = 1.0 / std::sqrt((double)W);
+
+    std::vector<double> omega(W), rff_bias(W);
+    {
+        uint64_t state = 314159265ULL;
+        auto next_uniform = [&]() -> double {
+            state = state * 6364136223846793005ULL + 1442695040888963407ULL;
+            return ((state >> 11) & 0x1FFFFFFFFFFFFFULL) / (double)(1ULL << 53);
+        };
+        for (int j = 0; j < W; j++) {
+            double u1 = std::max(1e-10, next_uniform());
+            double u2 = next_uniform();
+            omega[j] = std::sqrt(-2.0 * std::log(u1)) * std::cos(2.0 * M_PI * u2) / bandwidth;
+            rff_bias[j] = next_uniform() * 2.0 * M_PI;
+        }
+    }
+
+    std::vector<double> PhiTPhi(W * W, 0.0);
+    std::vector<double> PhiTy(W, 0.0);
+    for (int b = 0; b < N_BINS; b++) {
+        std::vector<double> phi_b(W);
+        for (int j = 0; j < W; j++) {
+            phi_b[j] = std::cos(omega[j] * bin_center[b] + rff_bias[j]) * inv_sqrt_W;
+        }
+        for (int a = 0; a < W; a++) {
+            PhiTy[a] += phi_b[a] * bin_log_median[b];
+            for (int bb = a; bb < W; bb++) {
+                PhiTPhi[a * W + bb] += phi_b[a] * phi_b[bb];
+            }
+        }
+    }
+    for (int a = 0; a < W; a++)
+        for (int b = 0; b < a; b++)
+            PhiTPhi[a * W + b] = PhiTPhi[b * W + a];
+
+    double lambda = (double)N_BINS / (double)W;
+    for (int j = 0; j < W; j++) {
+        PhiTPhi[j * W + j] += lambda;
+    }
+
+    std::vector<double> A_rff(PhiTPhi);
+    std::vector<double> beta_rff(PhiTy);
+    for (int j = 0; j < W; j++) {
+        int piv = j;
+        double mx = std::abs(A_rff[j * W + j]);
+        for (int i = j + 1; i < W; i++) {
+            double v = std::abs(A_rff[i * W + j]);
+            if (v > mx) { mx = v; piv = i; }
+        }
+        if (piv != j) {
+            for (int c = 0; c < W; c++) std::swap(A_rff[j * W + c], A_rff[piv * W + c]);
+            std::swap(beta_rff[j], beta_rff[piv]);
+        }
+        if (std::abs(A_rff[j * W + j]) < 1e-15) continue;
+        for (int i = j + 1; i < W; i++) {
+            double f = A_rff[i * W + j] / A_rff[j * W + j];
+            for (int c = j; c < W; c++) A_rff[i * W + c] -= f * A_rff[j * W + c];
+            beta_rff[i] -= f * beta_rff[j];
+        }
+    }
+    for (int j = W - 1; j >= 0; j--) {
+        for (int c = j + 1; c < W; c++) beta_rff[j] -= A_rff[j * W + c] * beta_rff[c];
+        if (std::abs(A_rff[j * W + j]) > 1e-15)
+            beta_rff[j] /= A_rff[j * W + j];
+        else
+            beta_rff[j] = 0.0;
+    }
+
+    NumericVector var_trend(n);
+    for (int i = 0; i < n; i++) {
+        double pred = 0.0;
+        for (int j = 0; j < W; j++) {
+            pred += std::cos(omega[j] * log_bm[i] + rff_bias[j]) * inv_sqrt_W * beta_rff[j];
+        }
+        var_trend[i] = std::exp(pred);
+        var_trend[i] = std::max((double)var_trend[i], eps);
+    }
+    return var_trend;
+}
+
+// [[Rcpp::export]]
+List adaptive_squeeze_var_hierarchical_cpp(NumericVector vars,
+                                            NumericVector gene_means,
+                                            int n_samples,
+                                            bool use_rff_trend = false,
+                                            double eps = 1e-8) {
+    const int n = vars.size();
+    int df_residual = std::max(n_samples - 2, 1);
+    
+    // =====================================================================
+    // Step 1: compute variance trend
+    // Two methods:
+    //   (A) Binned median + linear interpolation (classic limma-trend)
+    //   (B) Random Fourier Features ridge regression (P2: Meir scaling law)
+    // =====================================================================
+    std::vector<double> log_bm(n);
+    for (int i = 0; i < n; i++) {
+        log_bm[i] = std::log(std::max((double)gene_means[i], eps));
     }
     
-    // Linear interpolation to obtain gene-specific variance trend
     std::vector<double> var_trend(n);
-    for (int i = 0; i < n; i++) {
-        double x = log_bm[i];
-        if (x <= bin_center[0]) {
-            var_trend[i] = bin_value[0];
-        } else if (x >= bin_center[N_BINS - 1]) {
-            var_trend[i] = bin_value[N_BINS - 1];
-        } else {
-            int lo = 0, hi = N_BINS - 1;
-            while (hi - lo > 1) {
-                int m = (lo + hi) / 2;
-                if (bin_center[m] <= x) lo = m;
-                else hi = m;
+    
+    if (use_rff_trend) {
+        stop("use_rff_trend is disabled in the 1D limma-trend path; wide-shallow variance priors must be developed as a separate multi-feature module.");
+    }
+    {
+        // =================================================================
+        // Classic: Binned median + linear interpolation (limma-trend)
+        // =================================================================
+        const int N_BINS = std::min(50, std::max(5, n / 50));
+        
+        std::vector<int> order(n);
+        std::iota(order.begin(), order.end(), 0);
+        std::sort(order.begin(), order.end(),
+                  [&](int a, int b) { return log_bm[a] < log_bm[b]; });
+        
+        std::vector<double> bin_center(N_BINS), bin_value(N_BINS);
+        int genes_per_bin = n / N_BINS;
+        for (int b = 0; b < N_BINS; b++) {
+            int bstart = b * genes_per_bin;
+            int bend = (b == N_BINS - 1) ? n : (b + 1) * genes_per_bin;
+            int bsize = bend - bstart;
+            
+            double sum_lbm = 0;
+            std::vector<double> bvars(bsize);
+            for (int i = 0; i < bsize; i++) {
+                int g = order[bstart + i];
+                sum_lbm += log_bm[g];
+                bvars[i] = std::max((double)vars[g], eps);
             }
-            double frac = (x - bin_center[lo]) / (bin_center[hi] - bin_center[lo] + eps);
-            var_trend[i] = (1.0 - frac) * bin_value[lo] + frac * bin_value[hi];
+            bin_center[b] = sum_lbm / bsize;
+            
+            int bmid = bsize / 2;
+            std::nth_element(bvars.begin(), bvars.begin() + bmid, bvars.end());
+            bin_value[b] = bvars[bmid];
         }
-        var_trend[i] = std::max(var_trend[i], eps);
+        
+        // Linear interpolation
+        for (int i = 0; i < n; i++) {
+            double x = log_bm[i];
+            if (x <= bin_center[0]) {
+                var_trend[i] = bin_value[0];
+            } else if (x >= bin_center[N_BINS - 1]) {
+                var_trend[i] = bin_value[N_BINS - 1];
+            } else {
+                int lo = 0, hi = N_BINS - 1;
+                while (hi - lo > 1) {
+                    int m = (lo + hi) / 2;
+                    if (bin_center[m] <= x) lo = m;
+                    else hi = m;
+                }
+                double frac = (x - bin_center[lo]) / (bin_center[hi] - bin_center[lo] + eps);
+                var_trend[i] = (1.0 - frac) * bin_value[lo] + frac * bin_value[hi];
+            }
+            var_trend[i] = std::max(var_trend[i], eps);
+        }
     }
     
     // =====================================================================
@@ -1667,7 +2071,7 @@ List sgcb_wls_ebayes_cpp(NumericMatrix y,
     }
     
     // EB shrinkage (trend-based)
-    List shrink = adaptive_squeeze_var_hierarchical_cpp(sigma2_out, gene_means, n_samples, eps);
+    List shrink = adaptive_squeeze_var_hierarchical_cpp(sigma2_out, gene_means, n_samples, false, eps);
     double d0 = as<double>(shrink["df_prior"]);
     double df_total = d0 + df_residual;
     NumericVector var_shrunk_out = shrink["var_shrunk"];
@@ -1747,26 +2151,20 @@ List sgcb_info_geom_inference_cpp(NumericMatrix X,
     // Avoids ctrl/treat estimating separate priors, which causes DE contamination → implicit batch effect
     List gg_ctrl, gg_treat;
     if (use_hierarchical) {
-        // 1) Pooled moment-of-methods initialization → shared prior
+        // 1) Pooled profile-likelihood initialization → shared prior
         std::vector<double> pool_la(n_genes), pool_lb(n_genes), pool_lg(n_genes);
         bool pool_fix_gamma = (n_min <= 5);
+        HDWeights hdw_pool = build_hd_weights(n_samples, eps);
         
         #ifdef _OPENMP
         #pragma omp parallel for schedule(static)
         #endif
         for (int g = 0; g < n_genes; g++) {
-            double sum_x = 0, sum_x2 = 0;
-            for (int j = 0; j < n_samples; j++) {
-                double xij = X(g, j) + eps;
-                sum_x += xij;
-                sum_x2 += xij * xij;
-            }
-            double mean_x = sum_x / n_samples;
-            double var_x = sum_x2 / n_samples - mean_x * mean_x;
-            double cv2 = var_x / (mean_x * mean_x + eps);
-            pool_la[g] = std::log(std::max(0.5, std::min(10.0, 1.0 / cv2)));
-            pool_lg[g] = pool_fix_gamma ? 0.0 : std::log(std::max(0.5, std::min(3.0, 1.0 / std::sqrt(cv2 + eps))));
-            pool_lb[g] = std::log(std::max(eps, mean_x));
+            ProfileFitResult init = profile_fit_gg_gene(X, g, pool_fix_gamma, hdw_pool,
+                                                        0.2, 5.0, eps);
+            pool_la[g] = init.log_alpha;
+            pool_lb[g] = init.log_beta;
+            pool_lg[g] = init.log_gamma;
         }
         
         HierarchicalPrior shared_prior;
@@ -1806,16 +2204,18 @@ List sgcb_info_geom_inference_cpp(NumericMatrix X,
         mean_treat[g] = sum_t / n_treat + eps;
         baseMean[g] = (mean_ctrl[g] + mean_treat[g]) / 2;
         
-        // log2-scale mean and variance (computed directly in log2 space, consistent with limma-voom)
+        // log2-scale mean and variance (computed directly in log2 space)
+        // NOTE: X already has +0.5 pseudo-count added in R layer (continuous relaxation),
+        //       so X(g,j) >= 0.5 and no further offset is needed here.
         double sum_lc = 0, sum_lc2 = 0;
         for (int j = 0; j < n_ctrl; j++) {
-            double lv = std::log2(X(g, ctrl_idx[j]) + 0.5);
+            double lv = std::log2(X(g, ctrl_idx[j]));
             sum_lc += lv;
             sum_lc2 += lv * lv;
         }
         double sum_lt = 0, sum_lt2 = 0;
         for (int j = 0; j < n_treat; j++) {
-            double lv = std::log2(X(g, treat_idx[j]) + 0.5);
+            double lv = std::log2(X(g, treat_idx[j]));
             sum_lt += lv;
             sum_lt2 += lv * lv;
         }
@@ -1872,7 +2272,7 @@ List sgcb_info_geom_inference_cpp(NumericMatrix X,
     }
     
     List shrink_result = adaptive_squeeze_var_hierarchical_cpp(
-        pooled_var_log2, baseMean, n_ctrl + n_treat, eps);
+        pooled_var_log2, baseMean, n_ctrl + n_treat, false, eps);
     
     double s0_sq = as<double>(shrink_result["prior_var"]);
     double d0 = as<double>(shrink_result["df_prior"]);
@@ -2009,12 +2409,12 @@ List sgcb_info_geom_inference_cpp(NumericMatrix X,
     // Step 5: mixture weight (sample-size adaptive)
     // n<=5: GG estimates unreliable, fully degrades to limma-trend
     // n>5: gradually introduces GG information (bidirectional fusion)
-    double w_base;
-    if      (n_min <= 5)  w_base = 0.0;
-    else if (n_min <= 10) w_base = 0.20;
-    else if (n_min <= 20) w_base = 0.35;
-    else if (n_min <= 50) w_base = 0.50;
-    else                  w_base = 0.65;
+    // P1b: relaxed schedule — allow stronger GG fusion at moderate n
+    // GG variance blending disabled: var_gg = trigamma(α)/(γ²ln²2) is
+    // fundamentally miscalibrated because α is estimated on count scale
+    // (α≈0.1 due to skewness) while variance shrinkage operates on log₂ scale.
+    // Until GG α estimation is reworked for log-scale, blending hurts DE power.
+    double w_base = 0.0;
     if (!use_gg_variance) w_base = 0.0;
     
     // Step 6: Gene-specific EB shrinkage (Trend + bidirectional GG fusion)
@@ -2284,16 +2684,32 @@ List sgcb_info_geom_inference_cpp(NumericMatrix X,
     }
     
     // =========================================================================
-    // Fix C: primary p-value uses moderated t-test only
-    // Manifold test is retained as a diagnostic column, not used for FDR
+    // P1a: primary p-value = Cauchy(moderated-t, GG-mean Wald) when n>=6
+    // Cauchy combination (Liu & Xie 2020 JASA):
+    //   T = w1*tan(π(0.5-p1)) + w2*tan(π(0.5-p2))
+    //   p = 0.5 - atan(T/(w1+w2))/π
+    // Falls back to moderated-t only when n<6 (GG estimates unreliable)
     // =========================================================================
     NumericVector pvalue(n_genes);
+    const double M_PI_val = 3.14159265358979323846;
+    const bool use_cauchy_de = (n_min >= 6);
     
     #ifdef _OPENMP
     #pragma omp parallel for schedule(static)
     #endif
     for (int g = 0; g < n_genes; g++) {
-        pvalue[g] = std::max(eps, std::min(1.0, pvalue_t[g]));
+        double pt_g = std::max(eps, std::min(1.0 - eps, pvalue_t[g]));
+        if (!use_cauchy_de) {
+            pvalue[g] = pt_g;
+        } else {
+            double pw_g = std::max(eps, std::min(1.0 - eps, pvalue_mu_wald[g]));
+            // Equal weights Cauchy combination
+            double t1 = std::tan(M_PI_val * (0.5 - pt_g));
+            double t2 = std::tan(M_PI_val * (0.5 - pw_g));
+            double T_stat = 0.5 * t1 + 0.5 * t2;
+            double p_cauchy = 0.5 - std::atan(T_stat) / M_PI_val;
+            pvalue[g] = std::max(eps, std::min(1.0, p_cauchy));
+        }
     }
     
     return List::create(
