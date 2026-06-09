@@ -22,7 +22,9 @@ using namespace Rcpp;
 //   Log space: φ = (log α, log β, log γ)
 //   Jacobian: J = ∂θ/∂φ = diag(α, β, γ)
 //   Log-space Fisher: F_φ = J^T F_θ J = diag(α², β², γ²) ⊙ F_θ
-//   Log-space natural gradient: Δφ = F_φ^{-1} ∇_φ L
+//   Log-space natural-gradient target: Δφ = F_φ^{-1} ∇_φ L
+//   Implementation note: the update captures the dominant α-β coupling and
+//   uses a diagonal γ direction for numerical stability.
 // =============================================================================
 
 // -----------------------------------------------------------------------------
@@ -621,11 +623,11 @@ List fit_gg_natural_gradient_cpp(NumericMatrix X,
                 grad_lg[g] = 0.0;
             }
             
-            // Natural gradient correction (full Fisher matrix, resolves α-β coupling)
+            // Natural gradient correction (resolves dominant α-β coupling)
             // Derivation:
             //   Log-space Fisher: F_φ = J^T F_θ J, J = diag(α,β,γ)
-            //   Natural gradient: Δφ = F_φ^{-1} ∇_φ L
-            //   Uses full F^{-1} instead of diagonal approximation to capture α-β banana-shaped contours
+            //   Natural-gradient target: Δφ = F_φ^{-1} ∇_φ L
+            //   Current update keeps α-β cross-terms and treats γ diagonally.
             if (cfg.use_natural_grad) {
                 FisherMatrix3x3 F = compute_fisher_gg(
                     params.alpha(), params.beta(), params.gamma(), n_samples);
@@ -634,7 +636,7 @@ List fit_gg_natural_gradient_cpp(NumericMatrix X,
                 double b = params.beta();
                 double gam = params.gamma();
                 
-                // Compute full Fisher inverse (including α-β cross-terms)
+                // Compute inverse components used by the α-β coupled update
                 double inv_aa, inv_bb, inv_gg, inv_ab;
                 F.compute_full_inverse(inv_aa, inv_bb, inv_gg, inv_ab);
                 
@@ -643,8 +645,8 @@ List fit_gg_natural_gradient_cpp(NumericMatrix X,
                 double grad_b = grad_lb[g] / b;
                 double grad_g = grad_lg[g] / gam;
                 
-                // Full natural gradient (F^{-1} · ∇) in original parameter space
-                // d_theta = F_theta^{-1} · grad_theta
+                // Coupled α-β natural-gradient step plus diagonal γ step
+                // d_theta ≈ F_theta^{-1} · grad_theta with γ cross-terms omitted
                 double nat_grad_a = inv_aa * grad_a + inv_ab * grad_b;
                 double nat_grad_b = inv_ab * grad_a + inv_bb * grad_b;
                 double nat_grad_g = inv_gg * grad_g;
@@ -1020,7 +1022,7 @@ List fit_gg_hierarchical_bayes_cpp(NumericMatrix X,
             grad_lb[g] += prior_weight * prior_glb;
             grad_lg[g] += prior_weight * prior_glg;
             
-            // Natural gradient correction (full Fisher matrix, including α-β coupling)
+            // Natural gradient correction (dominant α-β coupling, diagonal γ)
             if (cfg.use_natural_grad) {
                 FisherMatrix3x3 F = compute_fisher_gg(
                     params.alpha(), params.beta(), params.gamma(), n_samples);
@@ -2408,14 +2410,22 @@ List sgcb_info_geom_inference_cpp(NumericMatrix X,
     
     // Step 5: mixture weight (sample-size adaptive)
     // n<=5: GG estimates unreliable, fully degrades to limma-trend
-    // n>5: gradually introduces GG information (bidirectional fusion)
-    // P1b: relaxed schedule — allow stronger GG fusion at moderate n
-    // GG variance blending disabled: var_gg = trigamma(α)/(γ²ln²2) is
-    // fundamentally miscalibrated because α is estimated on count scale
-    // (α≈0.1 due to skewness) while variance shrinkage operates on log₂ scale.
-    // Until GG α estimation is reworked for log-scale, blending hurts DE power.
-    double w_base = 0.0;
-    if (!use_gg_variance) w_base = 0.0;
+    // n>=6: introduce GG-trend information with conservative weight
+    // Note: raw var_gg is miscalibrated (α on count scale), but Step 3
+    // rescales var_gg_trend by median ratio and clamps to [0.25·s0², 4·s0²],
+    // so the blended prior stays within a safe envelope.
+    double w_base;
+    if (!use_gg_variance || n_min <= 5) {
+        w_base = 0.0;
+    } else if (n_min <= 10) {
+        w_base = 0.10;
+    } else if (n_min <= 20) {
+        w_base = 0.15;
+    } else if (n_min <= 50) {
+        w_base = 0.20;
+    } else {
+        w_base = 0.25;
+    }
     
     // Step 6: Gene-specific EB shrinkage (Trend + bidirectional GG fusion)
     // Unified formula:

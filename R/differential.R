@@ -29,6 +29,16 @@ NULL
 #' @param min_count Minimum count threshold, default 10
 #' @param min_samples Minimum number of samples, default 2
 #' @param config SGCBConfig configuration object (optional)
+#' @param prior_de Prior inclusion probability for DE channel in joint posterior;
+#'   numeric in (0,1) or \code{"auto"}.
+#' @param prior_dv Prior inclusion probability for DV channel in joint posterior;
+#'   numeric in (0,1) or \code{"auto"}.
+#' @param prior_dg Prior inclusion probability for DG channel in joint posterior;
+#'   numeric in (0,1) or \code{"auto"}.
+#' @param prior_sd_de Prior SD of DE log2 effect for ABF evidence
+#' @param prior_sd_dv Prior SD of DV log2 effect for ABF evidence
+#' @param prior_sd_dg_alpha Prior SD of DG alpha log2 effect for ABF evidence
+#' @param prior_sd_dg_gamma Prior SD of DG gamma log2 effect for ABF evidence
 #' @param ... Backward-compatible parameters that are currently accepted but not used by the current implementation
 #' @return An object of class \code{SGCBResults}
 #' @export
@@ -47,7 +57,15 @@ sgcbDE <- function(counts, group, alpha = 0.1,
                    use_manifold_test = TRUE,
                    bootstrap = FALSE, n_boot = 200,
                    min_count = 10, min_samples = 2,
-                   config = NULL, ...) {
+                   config = NULL,
+                   prior_de = "auto",
+                   prior_dv = "auto",
+                   prior_dg = "auto",
+                   prior_sd_de = 1.0,
+                   prior_sd_dv = 0.5,
+                   prior_sd_dg_alpha = 0.5,
+                   prior_sd_dg_gamma = 0.5,
+                   ...) {
 
     cfg <- if (is.null(config)) defaultSGCBConfig() else config
     if (is.null(config)) cfg@bootB <- as.integer(n_boot)
@@ -165,7 +183,8 @@ sgcbDE <- function(counts, group, alpha = 0.1,
     dv_result <- .sgcbDVTest(
         result$ctrl_alpha, result$ctrl_beta, result$ctrl_gamma,
         result$treat_alpha, result$treat_beta, result$treat_gamma,
-        n_ctrl, n_treat, eps
+        n_ctrl, n_treat, eps,
+        norm_counts = norm_counts, ctrl_idx = ctrl_idx, treat_idx = treat_idx
     )
     dg_result <- .sgcbDGTest(
         result$ctrl_alpha, result$ctrl_gamma,
@@ -173,8 +192,103 @@ sgcbDE <- function(counts, group, alpha = 0.1,
         n_ctrl, n_treat, eps
     )
     dv_padj <- p.adjust(dv_result$pvalue, method = "BH")
+    dv_padj_model <- p.adjust(dv_result$p_model, method = "BH")
+    dv_padj_model_raw <- p.adjust(dv_result$p_model_raw, method = "BH")
+    dv_padj_bf <- p.adjust(dv_result$p_bf, method = "BH")
+    dv_padj_mix <- p.adjust(dv_result$p_mix, method = "BH")
     dg_alpha_padj <- p.adjust(dg_result$alpha_pvalue, method = "BH")
     dg_gamma_padj <- p.adjust(dg_result$gamma_pvalue, method = "BH")
+    dg_entropy_padj <- p.adjust(dg_result$entropy_pvalue, method = "BH")
+    dg_shape_padj <- p.adjust(dg_result$shape_pvalue, method = "BH")
+
+    # ==========================================================================
+    # Empirical-null SE calibration for ABF channels
+    # ==========================================================================
+    de_cal <- .sgcbCalibratedSE(result$log2FC, lfc_se, eps)
+    dv_cal <- .sgcbCalibratedSE(dv_result$log2_cv2_ratio, dv_result$se_log2_cv2, eps)
+    dg_alpha_cal <- .sgcbCalibratedSE(dg_result$alpha_log2_ratio, dg_result$alpha_se_log2, eps)
+    dg_gamma_cal <- .sgcbCalibratedSE(dg_result$gamma_log2_ratio, dg_result$gamma_se_log2, eps)
+
+    # ==========================================================================
+    # ABF evidence from effect-size + uncertainty channels
+    # Wakefield-style approximation (normal likelihood + normal prior)
+    # ==========================================================================
+    bf_de_abf <- .sgcbABF1(
+        effect = result$log2FC,
+        se = de_cal$se_cal,
+        prior_sd = prior_sd_de
+    )
+    bf_dv_abf <- .sgcbABF1(
+        effect = dv_result$log2_cv2_ratio,
+        se = dv_cal$se_cal,
+        prior_sd = prior_sd_dv
+    )
+    bf_dg_abf <- .sgcbABFDiag(
+        effect_mat = cbind(dg_result$alpha_log2_ratio, dg_result$gamma_log2_ratio),
+        se_mat = cbind(dg_alpha_cal$se_cal, dg_gamma_cal$se_cal),
+        prior_sd = c(prior_sd_dg_alpha, prior_sd_dg_gamma)
+    )
+
+    # LR-BF proxy from model-based DV channel (less conservative than bootstrap-only p)
+    lr_proxy_dv <- stats::qchisq(.sgcbClipProb(dv_result$pvalue, eps), df = 1, lower.tail = FALSE)
+    lr_proxy_dg <- stats::qchisq(.sgcbClipProb(dg_result$shape_pvalue, eps), df = 2, lower.tail = FALSE)
+    bf_dv_lr <- .sgcbLRBF(lr_proxy_dv, n_ctrl + n_treat, 1)
+    bf_dg_lr <- .sgcbLRBF(lr_proxy_dg, n_ctrl + n_treat, 2)
+    bf_de <- bf_de_abf
+    bf_dv <- sqrt(bf_dv_abf) * bf_dv_lr
+    bf_dg <- sqrt(bf_dg_abf) * bf_dg_lr
+
+    prior_de_used <- .sgcbResolvePrior(
+        prior_de,
+        p = pvalue,
+        bf = bf_de,
+        prior_alpha = 1.0,
+        prior_beta = 9.0
+    )
+    prior_dv_beta <- ifelse(min(n_ctrl, n_treat) <= 6, 999.0,
+                            ifelse(min(n_ctrl, n_treat) <= 10, 199.0, 19.0))
+    prior_dv_upper <- ifelse(min(n_ctrl, n_treat) <= 10, 0.10, 0.25)
+    prior_dv_used <- .sgcbResolvePrior(
+        prior_dv,
+        p = dv_result$pvalue,
+        bf = bf_dv,
+        upper = prior_dv_upper,
+        prior_alpha = 1.0,
+        prior_beta = prior_dv_beta
+    )
+    prior_dg_used <- .sgcbResolvePrior(
+        prior_dg,
+        p = dg_result$shape_pvalue,
+        bf = bf_dg,
+        prior_alpha = 1.0,
+        prior_beta = 9.0
+    )
+
+    # ==========================================================================
+    # Joint DE/DV/DG posterior and model probabilities (8 models)
+    # ==========================================================================
+    joint_post <- .sgcbModelPosterior3(
+        p_de = pvalue,
+        p_dv = dv_result$pvalue,
+        p_dg = dg_result$shape_pvalue,
+        prior_de = prior_de_used,
+        prior_dv = prior_dv_used,
+        prior_dg = prior_dg_used,
+        bf_de = bf_de,
+        bf_dv = bf_dv,
+        bf_dg = bf_dg
+    )
+
+    de_call <- .sgcbPosteriorCalls(joint_post$p_de_post, target_fdr = alpha)
+    dv_call <- .sgcbPosteriorCalls(joint_post$p_dv_post, target_fdr = alpha)
+    dg_call <- .sgcbPosteriorCalls(joint_post$p_dg_post, target_fdr = alpha)
+    de_fdr_call <- padj <= alpha
+    dv_fdr_call <- dv_padj <= alpha
+    dv_model_fdr_call <- dv_padj_model <= alpha
+    dv_model_raw_fdr_call <- dv_padj_model_raw <= alpha
+    dv_bf_fdr_call <- dv_padj_bf <= alpha
+    dv_mix_fdr_call <- dv_padj_mix <= alpha
+    dg_fdr_call <- dg_shape_padj <= alpha
 
     # ==========================================================================
     # Optional: GG-calibrated bootstrap (S2)
@@ -201,7 +315,7 @@ sgcbDE <- function(counts, group, alpha = 0.1,
         g_ctrl <- pmax(result$ctrl_gamma, 0.05)
         se_log_a <- 1 / sqrt(n_ctrl * trigamma(a_ctrl) * a_ctrl^2 + eps)
         se_log_b <- 1 / sqrt(n_ctrl * a_ctrl * g_ctrl^2 + eps)
-        se_log_g <- 1 / sqrt(n_ctrl * (1 + a_ctrl * trigamma(a_ctrl)) + eps)
+        se_log_g <- 1 / sqrt(n_ctrl * (1 + a_ctrl * digamma(a_ctrl)^2 + 2 * digamma(a_ctrl) + a_ctrl * trigamma(a_ctrl)) + eps)
 
         T_null_all <- matrix(NA_real_, n_genes, B)
         sapply(seq_len(B), function(b) {
@@ -242,7 +356,7 @@ sgcbDE <- function(counts, group, alpha = 0.1,
     # DD independent output (Differential Distribution)
     # Cauchy combination of DV(CV²) + DG(gamma), avoiding manifold double-counting
     # ==========================================================================
-    p_dd_mat <- cbind(dv_result$pvalue, dg_result$gamma_pvalue)
+    p_dd_mat <- cbind(dv_result$pvalue, dg_result$shape_pvalue)
     pvalue_dd <- cauchy_combine(p_dd_mat)
     padj_dd <- p.adjust(pvalue_dd, method = "BH")
 
@@ -282,21 +396,39 @@ sgcbDE <- function(counts, group, alpha = 0.1,
         treat_gamma = result$treat_gamma,
         dv_log2_var_ratio = dv_result$log2_var_ratio,
         dv_log2_cv2_ratio = dv_result$log2_cv2_ratio,
+        dv_se_log2_cv2 = dv_result$se_log2_cv2,
         dv_stat = dv_result$stat,
         dv_pvalue = dv_result$pvalue,
         dv_padj = dv_padj,
+        dv_pvalue_model = dv_result$p_model,
+        dv_padj_model = dv_padj_model,
+        dv_pvalue_model_raw = dv_result$p_model_raw,
+        dv_padj_model_raw = dv_padj_model_raw,
+        dv_pvalue_bf = dv_result$p_bf,
+        dv_padj_bf = dv_padj_bf,
+        dv_pvalue_mix = dv_result$p_mix,
+        dv_padj_mix = dv_padj_mix,
         dv_var_ctrl = dv_result$var_ctrl,
         dv_var_treat = dv_result$var_treat,
         dv_cv2_ctrl = dv_result$cv2_ctrl,
         dv_cv2_treat = dv_result$cv2_treat,
         dg_alpha_log2_ratio = dg_result$alpha_log2_ratio,
+        dg_alpha_se_log2 = dg_result$alpha_se_log2,
         dg_alpha_stat = dg_result$alpha_stat,
         dg_alpha_pvalue = dg_result$alpha_pvalue,
         dg_alpha_padj = dg_alpha_padj,
         dg_gamma_log2_ratio = dg_result$gamma_log2_ratio,
+        dg_gamma_se_log2 = dg_result$gamma_se_log2,
         dg_gamma_stat = dg_result$gamma_stat,
         dg_gamma_pvalue = dg_result$gamma_pvalue,
         dg_gamma_padj = dg_gamma_padj,
+        dg_entropy_diff = dg_result$entropy_diff,
+        dg_entropy_stat = dg_result$entropy_stat,
+        dg_entropy_pvalue = dg_result$entropy_pvalue,
+        dg_entropy_padj = dg_entropy_padj,
+        dg_shape_stat = dg_result$shape_stat,
+        dg_shape_pvalue = dg_result$shape_pvalue,
+        dg_shape_padj = dg_shape_padj,
         stat = result$t_stat,
         pvalue = pvalue,
         pvalue_t = result$pvalue_t,
@@ -306,6 +438,37 @@ sgcbDE <- function(counts, group, alpha = 0.1,
         padj_t = padj_t,
         padj_mu_wald = padj_mu_wald,
         padj_manifold = padj_manifold,
+        de_fdr_call = de_fdr_call,
+        dv_fdr_call = dv_fdr_call,
+        dv_model_fdr_call = dv_model_fdr_call,
+        dv_model_raw_fdr_call = dv_model_raw_fdr_call,
+        dv_bf_fdr_call = dv_bf_fdr_call,
+        dv_mix_fdr_call = dv_mix_fdr_call,
+        dg_fdr_call = dg_fdr_call,
+        p_de_post = joint_post$p_de_post,
+        de_post_call = de_call$call,
+        p_dv_post = joint_post$p_dv_post,
+        dv_post_call = dv_call$call,
+        p_dg_post = joint_post$p_dg_post,
+        dg_post_call = dg_call$call,
+        p_de_only_post = joint_post$p_de_only_post,
+        p_dv_only_post = joint_post$p_dv_only_post,
+        p_dg_only_post = joint_post$p_dg_only_post,
+        p_de_dv_post = joint_post$p_de_dv_post,
+        p_de_dg_post = joint_post$p_de_dg_post,
+        p_dv_dg_post = joint_post$p_dv_dg_post,
+        p_de_dv_dg_post = joint_post$p_de_dv_dg_post,
+        bf_de = joint_post$bf_de,
+        bf_dv = joint_post$bf_dv,
+        bf_dg = joint_post$bf_dg,
+        model_prob_null = joint_post$model_prob[, "model_prob_null"],
+        model_prob_de = joint_post$model_prob[, "model_prob_de"],
+        model_prob_dv = joint_post$model_prob[, "model_prob_dv"],
+        model_prob_dg = joint_post$model_prob[, "model_prob_dg"],
+        model_prob_de_dv = joint_post$model_prob[, "model_prob_de_dv"],
+        model_prob_de_dg = joint_post$model_prob[, "model_prob_de_dg"],
+        model_prob_dv_dg = joint_post$model_prob[, "model_prob_dv_dg"],
+        model_prob_de_dv_dg = joint_post$model_prob[, "model_prob_de_dv_dg"],
         pvalue_dd = pvalue_dd,
         padj_dd = padj_dd,
         SGCB_Score = sgcb_score,
@@ -336,6 +499,32 @@ sgcbDE <- function(counts, group, alpha = 0.1,
     attr(results, "use_firth") <- use_firth_opt
     attr(results, "use_gamma_submodel") <- use_gamma_submodel_opt
     attr(results, "use_gg_variance") <- use_gg_variance_opt
+    attr(results, "prior_de") <- prior_de
+    attr(results, "prior_dv") <- prior_dv
+    attr(results, "prior_dg") <- prior_dg
+    attr(results, "prior_de_used") <- prior_de_used
+    attr(results, "prior_dv_used") <- prior_dv_used
+    attr(results, "prior_dv_upper") <- prior_dv_upper
+    attr(results, "prior_dg_used") <- prior_dg_used
+    attr(results, "prior_sd_de") <- prior_sd_de
+    attr(results, "prior_sd_dv") <- prior_sd_dv
+    attr(results, "prior_sd_dg_alpha") <- prior_sd_dg_alpha
+    attr(results, "prior_sd_dg_gamma") <- prior_sd_dg_gamma
+    attr(results, "abf_inflation_de") <- de_cal$inflation
+    attr(results, "abf_inflation_dv") <- dv_cal$inflation
+    attr(results, "abf_inflation_dg_alpha") <- dg_alpha_cal$inflation
+    attr(results, "abf_inflation_dg_gamma") <- dg_gamma_cal$inflation
+    attr(results, "decision_mode") <- "frequentist_primary"
+    attr(results, "primary_de_channel") <- "padj"
+    attr(results, "primary_dv_channel") <- "dv_padj"
+    attr(results, "primary_dg_channel") <- "dg_shape_padj"
+    attr(results, "post_call_fdr") <- alpha
+    attr(results, "post_de_threshold") <- de_call$threshold
+    attr(results, "post_dv_threshold") <- dv_call$threshold
+    attr(results, "post_dg_threshold") <- dg_call$threshold
+    attr(results, "post_de_realized_fdr") <- de_call$realized_fdr
+    attr(results, "post_dv_realized_fdr") <- dv_call$realized_fdr
+    attr(results, "post_dg_realized_fdr") <- dg_call$realized_fdr
 
     class(results) <- c("SGCBResults", "data.frame")
     results
@@ -500,28 +689,6 @@ sgcbPairwise <- function(counts, sample_data, group_col,
     out
 }
 
-# =============================================================================
-# Backward compatibility (deprecated, delegates to unified entry point)
-# =============================================================================
-
-#' @rdname sgcbDE-deprecated
-#' @title Deprecated SGCB Functions
-#' @description These functions are deprecated. Use \code{\link{sgcbDE}} instead.
-#' @param counts Count matrix (genes x samples)
-#' @param group Group vector
-#' @param ... Passed to \code{sgcbDE}
-#' @export
-sgcbDE_fast <- function(counts, group, ...) {
-    .Deprecated("sgcbDE", msg = "sgcbDE_fast is deprecated. Use sgcbDE() instead.")
-    sgcbDE(counts, group, ...)
-}
-
-#' @rdname sgcbDE-deprecated
-#' @export
-sgcbDE_infogeom <- function(counts, group, ...) {
-    .Deprecated("sgcbDE", msg = "sgcbDE_infogeom is deprecated. Use sgcbDE() instead.")
-    sgcbDE(counts, group, ...)
-}
 
 #' Print SGCBResults
 #' @param x SGCBResults object

@@ -28,8 +28,83 @@ test_that("sgcbDE differential analysis works correctly", {
   expect_true(nrow(res) <= n_genes)
   expect_true("log2FoldChange" %in% names(res))
   expect_true("padj" %in% names(res))
+  expect_true("de_fdr_call" %in% names(res))
+  expect_true("dv_fdr_call" %in% names(res))
+  expect_true("dg_fdr_call" %in% names(res))
+  expect_true("dv_model_fdr_call" %in% names(res))
+  expect_true("dv_model_raw_fdr_call" %in% names(res))
+  expect_true("dv_bf_fdr_call" %in% names(res))
+  expect_true("dv_mix_fdr_call" %in% names(res))
   expect_true("SGCB_Score" %in% names(res))
   expect_true("pvalue_dd" %in% names(res))
+  expect_true("p_de_post" %in% names(res))
+  expect_true("p_dv_post" %in% names(res))
+  expect_true("p_dg_post" %in% names(res))
+  expect_true("de_post_call" %in% names(res))
+  expect_true("dv_post_call" %in% names(res))
+  expect_true("dg_post_call" %in% names(res))
+  expect_true("p_de_only_post" %in% names(res))
+  expect_true("p_dv_only_post" %in% names(res))
+  expect_true("p_dg_only_post" %in% names(res))
+  expect_true("p_de_dv_post" %in% names(res))
+  expect_true("p_de_dg_post" %in% names(res))
+  expect_true("p_dv_dg_post" %in% names(res))
+  expect_true("p_de_dv_dg_post" %in% names(res))
+  expect_true("model_prob_null" %in% names(res))
+  expect_true("model_prob_de_dv_dg" %in% names(res))
+
+  mp <- as.matrix(res[, c(
+    "model_prob_null", "model_prob_de", "model_prob_dv", "model_prob_dg",
+    "model_prob_de_dv", "model_prob_de_dg", "model_prob_dv_dg", "model_prob_de_dv_dg"
+  )])
+  expect_true(all(is.finite(mp)))
+  expect_true(all(abs(rowSums(mp) - 1) < 1e-8))
+  expect_true(all(res$p_de_post >= 0 & res$p_de_post <= 1))
+  expect_true(all(res$p_dv_post >= 0 & res$p_dv_post <= 1))
+  expect_true(all(res$p_dg_post >= 0 & res$p_dg_post <= 1))
+  expect_true(all(res$p_de_only_post >= 0 & res$p_de_only_post <= 1))
+  expect_true(all(res$p_dv_only_post >= 0 & res$p_dv_only_post <= 1))
+  expect_true(all(res$p_dg_only_post >= 0 & res$p_dg_only_post <= 1))
+  expect_true(all(res$p_de_dv_post >= 0 & res$p_de_dv_post <= 1))
+  expect_true(all(res$p_de_dg_post >= 0 & res$p_de_dg_post <= 1))
+  expect_true(all(res$p_dv_dg_post >= 0 & res$p_dv_dg_post <= 1))
+  expect_true(all(res$p_de_dv_dg_post >= 0 & res$p_de_dv_dg_post <= 1))
+  expect_true(all(res$de_post_call %in% c(TRUE, FALSE)))
+  expect_true(all(res$dv_post_call %in% c(TRUE, FALSE)))
+  expect_true(all(res$dg_post_call %in% c(TRUE, FALSE)))
+  expect_true("dv_pvalue_model" %in% names(res))
+  expect_true("dv_pvalue_model_raw" %in% names(res))
+  expect_true("dv_padj_model" %in% names(res))
+  expect_true("dv_padj_model_raw" %in% names(res))
+  expect_true("dv_pvalue_bf" %in% names(res))
+  expect_true("dv_padj_bf" %in% names(res))
+  expect_true("dv_pvalue_mix" %in% names(res))
+  expect_true("dv_padj_mix" %in% names(res))
+  expect_true(all(res$dv_pvalue_model >= 0 & res$dv_pvalue_model <= 1))
+  expect_true(all(res$dv_pvalue_model_raw >= 0 & res$dv_pvalue_model_raw <= 1))
+  expect_true(all(res$dv_pvalue_bf >= 0 & res$dv_pvalue_bf <= 1))
+  expect_true(all(res$dv_pvalue_mix >= 0 & res$dv_pvalue_mix <= 1))
+  expect_true(all(res$de_fdr_call %in% c(TRUE, FALSE)))
+  expect_true(all(res$dv_fdr_call %in% c(TRUE, FALSE)))
+  expect_true(all(res$dg_fdr_call %in% c(TRUE, FALSE)))
+  expect_true(all(res$dv_model_fdr_call %in% c(TRUE, FALSE)))
+  expect_true(all(res$dv_model_raw_fdr_call %in% c(TRUE, FALSE)))
+  expect_true(all(res$dv_bf_fdr_call %in% c(TRUE, FALSE)))
+  expect_true(all(res$dv_mix_fdr_call %in% c(TRUE, FALSE)))
+  expect_true(is.numeric(attr(res, "post_dv_realized_fdr")))
+  expect_true(attr(res, "post_dv_realized_fdr") >= 0 && attr(res, "post_dv_realized_fdr") <= 0.11)
+  expect_true(is.numeric(attr(res, "prior_de_used")))
+  expect_true(is.numeric(attr(res, "prior_dv_used")))
+  expect_true(is.numeric(attr(res, "prior_dv_upper")))
+  expect_true(is.numeric(attr(res, "prior_dg_used")))
+  expect_true(attr(res, "prior_de_used") >= 0.01 && attr(res, "prior_de_used") <= 0.99)
+  expect_true(attr(res, "prior_dv_used") >= 0.0009 && attr(res, "prior_dv_used") <= 0.99)
+  expect_true(attr(res, "prior_dv_upper") >= 0.1 && attr(res, "prior_dv_upper") <= 0.25)
+  expect_true(attr(res, "prior_dg_used") >= 0.01 && attr(res, "prior_dg_used") <= 0.99)
+  expect_identical(attr(res, "decision_mode"), "frequentist_primary")
+  expect_identical(attr(res, "primary_de_channel"), "padj")
+  expect_identical(attr(res, "primary_dv_channel"), "dv_padj")
+  expect_identical(attr(res, "primary_dg_channel"), "dg_shape_padj")
   
   # Significant genes
   sig <- significantGenes(res, padj_cutoff = 0.1)
@@ -37,16 +112,14 @@ test_that("sgcbDE differential analysis works correctly", {
 })
 
 test_that("SGCBConfig creation works correctly", {
-  # Default configuration
   cfg <- defaultSGCBConfig()
   expect_s4_class(cfg, "SGCBConfig")
-  expect_equal(cfg@hiddenWidth, 5000L)
-  expect_equal(cfg@learningRate, 0.001)
-  
-  # Custom configuration
-  cfg2 <- SGCBConfig(hiddenWidth = 2000L, maxIter = 100L)
-  expect_equal(cfg2@hiddenWidth, 2000L)
-  expect_equal(cfg2@maxIter, 100L)
+  expect_equal(cfg@bootB, 1000L)
+  expect_equal(cfg@seed, 12345L)
+
+  cfg2 <- SGCBConfig(bootB = 500L, seed = 42L)
+  expect_equal(cfg2@bootB, 500L)
+  expect_equal(cfg2@seed, 42L)
 })
 
 test_that("sgcbDE gene filtering works correctly", {
@@ -73,17 +146,14 @@ test_that("sgcbDE gene filtering works correctly", {
   expect_true(attr(res, "n_filtered") > 0)
 })
 
-test_that("Rcpp functions work correctly", {
-  # Test clip_vec
-  x <- c(-2, -1, 0, 1, 2, 3)
-  clipped <- clip_vec(x, 0, 2)
-  expect_equal(clipped, c(0, 0, 0, 1, 2, 2))
-  
-  # Test softplus_mat
-  mat <- matrix(c(0, 1, 2, 20, 30, 40), nrow = 2, ncol = 3)
-  sp <- softplus_mat(mat)
-  expect_true(all(sp > 0))
-  expect_true(all(sp >= mat))
+test_that("GG Fisher information computation works correctly", {
+  alpha <- c(2, 3)
+  beta <- c(100, 200)
+  gamma <- c(1, 1.5)
+  info <- fisher_info_diag(alpha, beta, gamma, 10L)
+  expect_equal(nrow(info), 2)
+  expect_equal(ncol(info), 3)
+  expect_true(all(info > 0))
 })
 
 test_that("GG log-likelihood computation works correctly", {
@@ -97,20 +167,74 @@ test_that("GG log-likelihood computation works correctly", {
   expect_true(all(is.finite(ll)))
 })
 
-test_that("Bootstrap functions work correctly", {
+test_that("sgcbDReg GLM analysis works correctly", {
   set.seed(123)
-  
-  # Test resampling indices
-  indices <- resample_indices(10, 5, 3)
-  expect_equal(dim(indices), c(5, 3))
-  expect_true(all(indices >= 0 & indices < 10))
-  
-  # Test BH adjustment
-  pvals <- c(0.01, 0.02, 0.03, 0.1, 0.5)
-  padj <- bh_adjust(pvals)
-  expect_equal(length(padj), 5)
-  expect_true(all(padj >= pvals))
-  expect_true(all(padj <= 1))
+  n_genes <- 500
+  n_samples <- 6
+  counts <- matrix(rnbinom(n_genes * n_samples, mu = 100, size = 10),
+                   nrow = n_genes, ncol = n_samples)
+  rownames(counts) <- paste0("gene_", seq_len(n_genes))
+  counts[1:50, 4:6] <- counts[1:50, 4:6] * 3
+  group <- rep(c("ctrl", "treat"), each = 3)
+
+  res <- sgcbDReg(counts, group = group)
+  expect_s3_class(res, "SGCBDRegResults")
+  expect_true(nrow(res) > 0)
+  expect_true("log2FoldChange" %in% names(res))
+  expect_true("padj" %in% names(res))
+  expect_true("p_de_post" %in% names(res))
+  expect_true("p_de_only_post" %in% names(res))
+  expect_true("de_post_call" %in% names(res))
+  expect_true("de_fdr_call" %in% names(res))
+  expect_true("model_prob_null" %in% names(res))
+  expect_true("model_prob_de" %in% names(res))
+  expect_true("bf_de" %in% names(res))
+  expect_true(all(abs(res$model_prob_null + res$model_prob_de - 1) < 1e-8))
+  expect_true(all(res$p_de_post >= 0 & res$p_de_post <= 1))
+  expect_true(all(res$p_de_only_post >= 0 & res$p_de_only_post <= 1))
+  expect_true(all(res$de_post_call %in% c(TRUE, FALSE)))
+  expect_true(is.numeric(attr(res, "prior_de_used")))
+  expect_true(attr(res, "prior_de_used") >= 0.01 && attr(res, "prior_de_used") <= 0.99)
+  expect_true(sum(res$padj < 0.05, na.rm = TRUE) > 0)
+})
+
+test_that("sgcbDReg DV joint posterior works correctly", {
+  set.seed(123)
+  n_genes <- 300
+  n_samples <- 8
+  counts <- matrix(rnbinom(n_genes * n_samples, mu = 100, size = 10),
+                   nrow = n_genes, ncol = n_samples)
+  rownames(counts) <- paste0("gene_", seq_len(n_genes))
+  group <- rep(c("ctrl", "treat"), each = 4)
+
+  res <- sgcbDReg(counts, group = group, design_disp = "auto")
+  expect_s3_class(res, "SGCBDRegResults")
+  expect_true("p_dv_post" %in% names(res))
+  expect_true("dv_post_call" %in% names(res))
+  expect_true("dv_fdr_call" %in% names(res))
+  expect_true("p_dv_only_post" %in% names(res))
+  expect_true("p_de_dv_post" %in% names(res))
+  expect_true("model_prob_de_dv" %in% names(res))
+  expect_true("ll_null_dv" %in% names(res))
+  expect_true("ll_full_dv" %in% names(res))
+  expect_true("bf_dv_laplace" %in% names(res))
+  expect_true("bf_dv_laplace_prior" %in% names(res))
+  mp <- as.matrix(res[, c("model_prob_null", "model_prob_de", "model_prob_dv", "model_prob_de_dv")])
+  expect_true(all(is.finite(mp)))
+  expect_true(all(abs(rowSums(mp) - 1) < 1e-8))
+  expect_true(all(is.finite(res$ll_null_dv)))
+  expect_true(all(is.finite(res$ll_full_dv)))
+  expect_true(all(res$bf_dv_laplace > 0))
+  expect_true(all(res$bf_dv_laplace_prior > 0))
+  expect_true(all(res$p_de_post >= 0 & res$p_de_post <= 1))
+  expect_true(all(res$p_dv_post >= 0 & res$p_dv_post <= 1))
+  expect_true(all(res$p_dv_only_post >= 0 & res$p_dv_only_post <= 1))
+  expect_true(all(res$dv_post_call %in% c(TRUE, FALSE)))
+  expect_true(all(res$p_de_dv_post >= 0 & res$p_de_dv_post <= 1))
+  expect_true(is.numeric(attr(res, "prior_dv_used")))
+  expect_true(is.numeric(attr(res, "prior_dv_upper")))
+  expect_true(attr(res, "prior_dv_used") >= 0.0009 && attr(res, "prior_dv_used") <= 0.99)
+  expect_true(attr(res, "prior_dv_upper") >= 0.1 && attr(res, "prior_dv_upper") <= 0.25)
 })
 
 test_that("sgcbContrast wrapper works correctly", {

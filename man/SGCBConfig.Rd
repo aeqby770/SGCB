@@ -4,88 +4,21 @@
 \alias{SGCBConfig}
 \title{Create SGCBConfig configuration object}
 \usage{
-SGCBConfig(
-  epsilon = 1e-08,
-  hiddenWidth = 5000L,
-  learningRate = 0.001,
-  maxIter = 500L,
-  adamBeta1 = 0.9,
-  adamBeta2 = 0.999,
-  adamEps = 1e-08,
-  weightDecay = 1e-04,
-  gradClip = 5,
-  lrDecayFactor = 0.5,
-  lrDecayPatience = 20L,
-  earlyStopPatience = 50L,
-  minDelta = 1e-06,
-  bootB = 1000L,
-  mGrid = c(0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1),
-  cbReps = 100L,
-  cbTargetCoverage = 0.5,
-  ciLevel = 0.95,
-  paramLo = 0.01,
-  paramHi = 100,
-  nDropout = 50L,
-  dropoutRate = 0.2,
-  nCores = parallel::detectCores(),
-  seed = 12345L
-)
+SGCBConfig(bootB = 1000L, nCores = parallel::detectCores(), seed = 12345L, ...)
 }
 \arguments{
-\item{epsilon}{Stored numerical-stability constant (currently not used by \code{sgcbDE})}
+\item{bootB}{Number of bootstrap replicates (used when \code{bootstrap = TRUE})}
 
-\item{hiddenWidth}{Stored hidden-layer width (currently not used by \code{sgcbDE})}
+\item{nCores}{Number of parallel cores}
 
-\item{learningRate}{Stored learning rate (currently not used by \code{sgcbDE})}
+\item{seed}{Random seed for reproducibility}
 
-\item{maxIter}{Stored iteration limit (currently not used by \code{sgcbDE})}
-
-\item{adamBeta1}{Stored legacy optimizer parameter (currently not used by \code{sgcbDE})}
-
-\item{adamBeta2}{Stored legacy optimizer parameter (currently not used by \code{sgcbDE})}
-
-\item{adamEps}{Stored legacy optimizer parameter (currently not used by \code{sgcbDE})}
-
-\item{weightDecay}{Stored weight-decay parameter (currently not used by \code{sgcbDE})}
-
-\item{gradClip}{Stored gradient-clipping threshold (currently not used by \code{sgcbDE})}
-
-\item{lrDecayFactor}{Stored learning-rate decay factor (currently not used by \code{sgcbDE})}
-
-\item{lrDecayPatience}{Stored learning-rate decay patience (currently not used by \code{sgcbDE})}
-
-\item{earlyStopPatience}{Stored early-stopping patience (currently not used by \code{sgcbDE})}
-
-\item{minDelta}{Stored early-stopping tolerance (currently not used by \code{sgcbDE})}
-
-\item{bootB}{Number of bootstrap replicates used when \code{bootstrap = TRUE}}
-
-\item{mGrid}{Stored calibrated-bootstrap grid (currently not used by \code{sgcbDE})}
-
-\item{cbReps}{Stored calibrated-bootstrap repetitions (currently not used by \code{sgcbDE})}
-
-\item{cbTargetCoverage}{Stored calibrated-bootstrap target coverage (currently not used by \code{sgcbDE})}
-
-\item{ciLevel}{Stored confidence-interval level (currently not used by \code{sgcbDE})}
-
-\item{paramLo}{Stored lower parameter bound (currently not used by \code{sgcbDE})}
-
-\item{paramHi}{Stored upper parameter bound (currently not used by \code{sgcbDE})}
-
-\item{nDropout}{Stored dropout replicate count (currently not used by \code{sgcbDE})}
-
-\item{dropoutRate}{Stored dropout rate (currently not used by \code{sgcbDE})}
-
-\item{nCores}{Stored parallel-core count (currently not used by \code{sgcbDE})}
-
-\item{seed}{Stored random seed (currently not used by \code{sgcbDE})}
+\item{...}{Ignored (backward compatibility with legacy slot names)}
 }
 \value{
 SGCBConfig object
 }
 \description{
-Create an \code{SGCBConfig} object. In the current \code{sgcbDE}
-pipeline, only \code{bootB} is consumed directly by the analysis. All other
-slots are retained for object compatibility, future extension, or legacy code
-paths, but are not currently read by the main two-group inference routine.
+Create an \code{SGCBConfig} object controlling bootstrap and
+parallelisation behaviour for \code{sgcbDE()}.
 }

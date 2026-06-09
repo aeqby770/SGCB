@@ -5,61 +5,15 @@
 \alias{SGCBConfig-class}
 \title{SGCBConfig class}
 \description{
-Stores SGCB analysis configuration parameters. In the current
-implementation, \code{sgcbDE()} reads only the \code{bootB} slot directly.
-The remaining slots are stored for compatibility, legacy code paths, or
-future extensions, but are not consumed by the main two-group inference
-routine.
+Stores SGCB analysis configuration parameters.
 }
 \section{Slots}{
 
 \describe{
-\item{\code{epsilon}}{Stored numerical-stability constant}
-
-\item{\code{hiddenWidth}}{Stored hidden-layer width}
-
-\item{\code{learningRate}}{Stored learning rate}
-
-\item{\code{maxIter}}{Stored maximum number of iterations}
-
-\item{\code{adamBeta1}}{Stored legacy optimizer parameter}
-
-\item{\code{adamBeta2}}{Stored legacy optimizer parameter}
-
-\item{\code{adamEps}}{Stored legacy optimizer parameter}
-
-\item{\code{weightDecay}}{Stored weight-decay parameter}
-
-\item{\code{gradClip}}{Stored gradient-clipping threshold}
-
-\item{\code{lrDecayFactor}}{Stored learning-rate decay factor}
-
-\item{\code{lrDecayPatience}}{Stored patience for learning-rate decay}
-
-\item{\code{earlyStopPatience}}{Stored patience for early stopping}
-
-\item{\code{minDelta}}{Stored minimum improvement threshold}
-
 \item{\code{bootB}}{Number of bootstrap replicates used when \code{bootstrap = TRUE}}
 
-\item{\code{mGrid}}{Stored calibrated-bootstrap grid}
+\item{\code{nCores}}{Number of parallel cores}
 
-\item{\code{cbReps}}{Stored calibrated-bootstrap repetitions}
-
-\item{\code{cbTargetCoverage}}{Stored calibrated-bootstrap target coverage}
-
-\item{\code{ciLevel}}{Stored confidence-interval level}
-
-\item{\code{paramLo}}{Stored lower bound for parameter clipping}
-
-\item{\code{paramHi}}{Stored upper bound for parameter clipping}
-
-\item{\code{nDropout}}{Stored dropout replicate count}
-
-\item{\code{dropoutRate}}{Stored dropout rate}
-
-\item{\code{nCores}}{Stored parallel-core count}
-
-\item{\code{seed}}{Stored random seed}
+\item{\code{seed}}{Random seed for reproducibility}
 }}
 

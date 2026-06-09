@@ -1,7 +1,7 @@
 Package: SGCB
 Type: Package
-Title: Generalized-Gamma Differential Expression for Bulk RNA-seq
-Version: 0.2.0
+Title: Shape-Guided Channel Bayesian: Generalized-Gamma Distributional Regression for Multi-Omics Differential Analysis
+Version: 0.4.0
 Authors@R: 
     c(
         person("Hongjie", "Jiang", role = "aut"),
@@ -11,16 +11,16 @@ Authors@R:
     )
 Author: Hongjie Jiang [aut], Anchi Che [aut], Yanxiao Han [aut] (co-corresponding author), Yanshuo Han [aut, cre] (co-corresponding author)
 Maintainer: Yanshuo Han <yanshuohan@dlut.edu.cn>
-Description: Differential analysis for two-group bulk RNA-seq based on
-    Generalized Gamma (GG) modeling and information-geometric natural-gradient
-    estimation. The inferential core fits gene-wise GG models, applies TMM
-    preprocessing, limma-style fitFDist variance shrinkage, moderated-t
-    testing for primary DE, and additional diagnostic channels for GG mean,
-    manifold distance, differential variability (DV), and differential shape
-    (DG). The package reports DD via Cauchy combination of DV and DG-gamma,
-    SGCB_Score via Cauchy combination of DE and DD, optional calibrated
-    bootstrap uncertainty columns, and deployment wrappers for
-    contrast-defined or pairwise follow-up from richer study designs.
+Description: Distributional regression for RNA-seq based on the
+    three-parameter Generalized Gamma (GG) family. The core engine
+    sgcbDReg() fits gene-wise GG GLMs with arbitrary design matrices:
+    a mean channel log(beta) = X b via blockwise Fisher scoring, an
+    optional dispersion channel log(alpha) = W d via likelihood-ratio
+    testing for differential variability (DV), and empirical-Bayes
+    moderated t-tests for differential expression (DE). The legacy
+    two-group entry point sgcbDE() remains fully backward-compatible.
+    Preprocessing uses TMM normalization; inference uses limma-style
+    fitFDist variance shrinkage. C++17/OpenMP parallelized throughout.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
@@ -50,3 +50,4 @@ Collate:
     'RcppExports.R'
     'utils.R'
     'differential.R'
+    'dreg.R'

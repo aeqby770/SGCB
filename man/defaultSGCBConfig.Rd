@@ -10,8 +10,5 @@ defaultSGCBConfig()
 SGCBConfig object
 }
 \description{
-Return the default \code{SGCBConfig} object. As with
-\code{SGCBConfig()}, only the \code{bootB} slot is currently read by the
-main \code{sgcbDE()} pipeline; the remaining slots are retained for
-compatibility and future extension.
+Return the default \code{SGCBConfig} object.
 }

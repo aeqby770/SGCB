@@ -132,121 +132,6 @@ Rcpp::NumericMatrix gg_sample_mat(int n_genes, int n_samples,
 }
 
 // =============================================================================
-// Parameter clipping
-// =============================================================================
-// [[Rcpp::export]]
-double clip_value(double x, double lo, double hi) {
-  return (x < lo) ? lo : ((x > hi) ? hi : x);
-}
-
-// [[Rcpp::export]]
-Rcpp::NumericVector clip_vec(Rcpp::NumericVector x, double lo, double hi) {
-  int n = x.size();
-  Rcpp::NumericVector out(n);
-  #ifdef _OPENMP
-  #pragma omp parallel for schedule(static)
-  #endif
-  for (int i = 0; i < n; i++) {
-    double val = x[i];
-    out[i] = (val < lo) ? lo : ((val > hi) ? hi : val);
-  }
-  return out;
-}
-
-// =============================================================================
-// Adam optimizer state update (vectorized)
-// =============================================================================
-// [[Rcpp::export]]
-Rcpp::List adam_update(Rcpp::NumericVector param,
-                        Rcpp::NumericVector grad,
-                        Rcpp::NumericVector m,
-                        Rcpp::NumericVector v,
-                        double lr,
-                        double beta1,
-                        double beta2,
-                        double eps,
-                        int t) {
-  int n = param.size();
-  Rcpp::NumericVector m_new(n);
-  Rcpp::NumericVector v_new(n);
-  Rcpp::NumericVector param_new(n);
-  double bc1 = 1.0 - std::pow(beta1, t);
-  double bc2 = 1.0 - std::pow(beta2, t);
-  #ifdef _OPENMP
-  #pragma omp parallel for schedule(static)
-  #endif
-  for (int i = 0; i < n; i++) {
-    m_new[i] = beta1 * m[i] + (1.0 - beta1) * grad[i];
-    v_new[i] = beta2 * v[i] + (1.0 - beta2) * grad[i] * grad[i];
-    double m_hat = m_new[i] / bc1;
-    double v_hat = v_new[i] / bc2;
-    param_new[i] = param[i] - lr * m_hat / (std::sqrt(v_hat) + eps);
-  }
-  return Rcpp::List::create(
-    Rcpp::Named("param") = param_new,
-    Rcpp::Named("m") = m_new,
-    Rcpp::Named("v") = v_new
-  );
-}
-
-// =============================================================================
-// Matrix softplus activation and gradient (OpenMP parallel)
-// =============================================================================
-// [[Rcpp::export]]
-Rcpp::NumericMatrix softplus_mat(Rcpp::NumericMatrix x, double threshold = 20.0) {
-  int nr = x.nrow();
-  int nc = x.ncol();
-  Rcpp::NumericMatrix out(nr, nc);
-  #ifdef _OPENMP
-  #pragma omp parallel for collapse(2) schedule(static)
-  #endif
-  for (int i = 0; i < nr; i++) {
-    for (int j = 0; j < nc; j++) {
-      double val = x(i, j);
-      out(i, j) = (val > threshold) ? val : std::log1p(std::exp(val));
-    }
-  }
-  return out;
-}
-
-// [[Rcpp::export]]
-Rcpp::NumericMatrix softplus_grad_mat(Rcpp::NumericMatrix x, double threshold = 20.0) {
-  int nr = x.nrow();
-  int nc = x.ncol();
-  Rcpp::NumericMatrix out(nr, nc);
-  #ifdef _OPENMP
-  #pragma omp parallel for collapse(2) schedule(static)
-  #endif
-  for (int i = 0; i < nr; i++) {
-    for (int j = 0; j < nc; j++) {
-      double val = x(i, j);
-      out(i, j) = (val > threshold) ? 1.0 : 1.0 / (1.0 + std::exp(-val));
-    }
-  }
-  return out;
-}
-
-// =============================================================================
-// Element-wise matrix clipping
-// =============================================================================
-// [[Rcpp::export]]
-Rcpp::NumericMatrix clip_mat(Rcpp::NumericMatrix x, double lo, double hi) {
-  int nr = x.nrow();
-  int nc = x.ncol();
-  Rcpp::NumericMatrix out(nr, nc);
-  #ifdef _OPENMP
-  #pragma omp parallel for collapse(2) schedule(static)
-  #endif
-  for (int i = 0; i < nr; i++) {
-    for (int j = 0; j < nc; j++) {
-      double val = x(i, j);
-      out(i, j) = (val < lo) ? lo : ((val > hi) ? hi : val);
-    }
-  }
-  return out;
-}
-
-// =============================================================================
 // Compute Fisher information matrix diagonal (for Wald confidence intervals)
 // =============================================================================
 // [[Rcpp::export]]
@@ -264,126 +149,158 @@ Rcpp::NumericMatrix fisher_info_diag(Rcpp::NumericVector alpha,
     double b = beta[i];
     double g = gamma[i];
     double trigamma_a = R::trigamma(a);
+    double digamma_a = R::digamma(a);
     info(i, 0) = n_samples * trigamma_a;
     info(i, 1) = n_samples * a * g * g / (b * b);
-    info(i, 2) = n_samples * (1.0 + a * trigamma_a) / (g * g);
+    info(i, 2) = n_samples * (1.0 + a * digamma_a * digamma_a + 2.0 * digamma_a + a * trigamma_a) / (g * g);
   }
   return info;
 }
 
 // =============================================================================
-// Compute Log Fold Change and its standard error
+// Schur complement of I_ββ: conditional (α,γ) precision given β
+//
+// For functionals that depend only on (α,γ) — such as CV², which is
+// scale-free — the correct variance is the CONDITIONAL variance of
+// (α̂,γ̂) given β̂, not the marginal variance from the full inverse.
+//
+// The conditional precision of (α,γ)|β is the Schur complement:
+//   S = [I_αα  I_αγ] - (1/I_ββ) [I_αβ] [I_αβ  I_βγ]
+//       [I_αγ  I_γγ]             [I_βγ]
+//
+// S is 2×2 SPD. Its inverse S⁻¹ gives Cov(α̂,γ̂|β̂).
+//
+// Why this is correct for CV²:
+//   CV² = Γ(α+2/γ)Γ(α)/Γ(α+1/γ)² − 1  (no β dependency)
+//   The profile likelihood for CV² integrates out β, yielding the
+//   conditional Fisher information S as the relevant metric.
+//
+// Why full I⁻¹ is wrong for CV²:
+//   (I⁻¹)_{αα,αγ,γγ} includes the marginal uncertainty from β estimation,
+//   which inflates the variance of β-independent functionals.
+//   Specifically: Var_marginal(α̂) > Var_conditional(α̂|β̂) when I_αβ ≠ 0.
+//
+// Returns: n × 3 matrix with columns (S⁻¹_αα, S⁻¹_γγ, S⁻¹_αγ)
 // =============================================================================
 // [[Rcpp::export]]
-Rcpp::List compute_lfc(Rcpp::NumericVector treat_mean,
-                        Rcpp::NumericVector control_mean,
-                        Rcpp::NumericVector treat_var,
-                        Rcpp::NumericVector control_var,
-                        int n_treat,
-                        int n_control,
-                        double eps = 1e-8) {
-  int n = treat_mean.size();
-  Rcpp::NumericVector lfc(n);
-  Rcpp::NumericVector lfc_se(n);
+Rcpp::NumericMatrix fisher_info_schur_ag(Rcpp::NumericVector alpha,
+                                          Rcpp::NumericVector beta,
+                                          Rcpp::NumericVector gamma,
+                                          int n_samples) {
+  const int n = alpha.size();
+  const double reg = 1e-10;
+  Rcpp::NumericMatrix out(n, 3);
+
   #ifdef _OPENMP
   #pragma omp parallel for schedule(static)
   #endif
   for (int i = 0; i < n; i++) {
-    double tm = treat_mean[i] + eps;
-    double cm = control_mean[i] + eps;
-    lfc[i] = std::log2(tm) - std::log2(cm);
-    double var_term = treat_var[i] / (n_treat * tm * tm) + 
-                      control_var[i] / (n_control * cm * cm);
-    lfc_se[i] = std::sqrt(var_term) / std::log(2.0);
+    double a = std::max(alpha[i], 0.05);
+    double b = std::max(beta[i], reg);
+    double g = std::max(gamma[i], 0.05);
+    double psi_a  = R::digamma(a);
+    double psi1_a = R::trigamma(a);
+    int    ns = n_samples;
+
+    // Fisher information matrix elements
+    double Faa = ns * psi1_a;
+    double Fbb = ns * a * g * g / (b * b);
+    double Fgg = ns * (1.0 + a * psi_a * psi_a + 2.0 * psi_a + a * psi1_a) / (g * g);
+    double Fab = ns * g / b;
+    double Fag = -ns * psi_a / g;
+    double Fbg = -ns * (1.0 + a * psi_a) / b;
+
+    // Schur complement: S = [Faa Fag; Fag Fgg] - (1/Fbb)*[Fab; Fbg]*[Fab Fbg]
+    double inv_Fbb = 1.0 / std::max(Fbb, reg);
+    double Saa = Faa - Fab * Fab * inv_Fbb;
+    double Sgg = Fgg - Fbg * Fbg * inv_Fbb;
+    double Sag = Fag - Fab * Fbg * inv_Fbb;
+
+    // Invert 2×2 symmetric S → S⁻¹
+    double det_S = Saa * Sgg - Sag * Sag;
+    det_S = std::max(det_S, reg);
+    double inv_det = 1.0 / det_S;
+
+    out(i, 0) = Sgg * inv_det;    // S⁻¹_αα
+    out(i, 1) = Saa * inv_det;    // S⁻¹_γγ
+    out(i, 2) = -Sag * inv_det;   // S⁻¹_αγ
   }
-  return Rcpp::List::create(
-    Rcpp::Named("lfc") = lfc,
-    Rcpp::Named("lfc_se") = lfc_se
-  );
+  return out;
 }
 
 // =============================================================================
-// Compute statistic matrix (batch processing)
+// Full 3×3 Fisher information inverse for GG distribution
+//
+// Mathematical background:
+//   The GG(α,β,γ) Fisher information matrix is a 3×3 symmetric positive
+//   definite matrix with significant off-diagonal coupling:
+//     I_αβ = nγ/β,  I_αγ = -nψ(α)/γ,  I_βγ = -n(1+αψ(α))/β
+//
+//   The DV test computes Var[log(CV²)] = ∇ᵀ I⁻¹ ∇ via the delta method.
+//   Using only the diagonal of I⁻¹ (i.e. 1/I_ii) is algebraically wrong:
+//     (I⁻¹)_ii ≠ 1/I_ii  when I_ij ≠ 0
+//
+//   The correct marginal variance requires Cramer's rule on the full matrix:
+//     I⁻¹ = adj(I) / det(I)
+//
+//   For a 3×3 SPD matrix, the Schur complement perspective shows that
+//   ignoring the α-β correlation (I_αβ > 0) systematically underestimates
+//   the marginal variances, producing inflated z-statistics → false positives.
+//
+// Returns: n × 6 matrix with columns
+//   (inv_aa, inv_bb, inv_gg, inv_ab, inv_ag, inv_bg)
 // =============================================================================
 // [[Rcpp::export]]
-Rcpp::NumericMatrix compute_T_stat_batch(const Rcpp::NumericMatrix& X,
-                                          const Rcpp::NumericVector& alpha,
-                                          const Rcpp::NumericVector& beta,
-                                          const Rcpp::NumericVector& gamma,
-                                          int n_genes,
-                                          int n_samples,
-                                          int n_batches,
-                                          int batch_size,
-                                          double eps = 1e-8) {
-  Rcpp::NumericMatrix T_stats(n_genes, n_batches);
-  
-  #ifdef _OPENMP
-  #pragma omp parallel for schedule(dynamic) collapse(2)
-  #endif
-  for (int b = 0; b < n_batches; b++) {
-    for (int g = 0; g < n_genes; g++) {
-      const int start_col = b * batch_size;
-      const int end_col = std::min(start_col + batch_size, n_samples);
-      const int actual_size = end_col - start_col;
-      
-      // Pre-compute GG parameters
-      GGParams gg;
-      gg.precompute(alpha[g], beta[g], gamma[g]);
-      
-      double sum_nll = 0.0;
-      for (int s = start_col; s < end_col; s++) {
-        sum_nll -= gg.loglik(X(g, s));
-      }
-      T_stats(g, b) = sum_nll / actual_size;
-    }
-  }
-  return T_stats;
-}
+Rcpp::NumericMatrix fisher_info_full_inverse(Rcpp::NumericVector alpha,
+                                              Rcpp::NumericVector beta,
+                                              Rcpp::NumericVector gamma,
+                                              int n_samples) {
+  const int n = alpha.size();
+  const double reg = 1e-10;
+  Rcpp::NumericMatrix out(n, 6);
 
-// =============================================================================
-// Calibrated Bootstrap: coverage computation for m search
-// =============================================================================
-// [[Rcpp::export]]
-double compute_coverage_error(Rcpp::NumericMatrix T_null_mat,
-                               Rcpp::NumericVector T_obs,
-                               double target_coverage = 0.5) {
-  int n_genes = T_null_mat.nrow();
-  int n_reps = T_null_mat.ncol();
-  double total_error = 0.0;
-  #ifdef _OPENMP
-  #pragma omp parallel for reduction(+:total_error) schedule(static)
-  #endif
-  for (int g = 0; g < n_genes; g++) {
-    int count = 0;
-    double t_obs = T_obs[g];
-    for (int r = 0; r < n_reps; r++) {
-      count += (T_null_mat(g, r) <= t_obs) ? 1 : 0;
-    }
-    double emp_cov = (double)count / n_reps;
-    total_error += std::abs(emp_cov - target_coverage);
-  }
-  return total_error / n_genes;
-}
-
-// =============================================================================
-// Compute empirical p-values (vectorized)
-// =============================================================================
-// [[Rcpp::export]]
-Rcpp::NumericVector compute_empirical_pvalues(Rcpp::NumericMatrix T_null_mat,
-                                               Rcpp::NumericVector T_obs) {
-  int n_genes = T_null_mat.nrow();
-  int B = T_null_mat.ncol();
-  Rcpp::NumericVector pvals(n_genes);
   #ifdef _OPENMP
   #pragma omp parallel for schedule(static)
   #endif
-  for (int g = 0; g < n_genes; g++) {
-    int count = 0;
-    double t_obs = T_obs[g];
-    for (int b = 0; b < B; b++) {
-      count += (T_null_mat(g, b) >= t_obs) ? 1 : 0;
-    }
-    pvals[g] = (1.0 + count) / (1.0 + B);
+  for (int i = 0; i < n; i++) {
+    double a = std::max(alpha[i], 0.05);
+    double b = std::max(beta[i], reg);
+    double g = std::max(gamma[i], 0.05);
+    double psi_a  = R::digamma(a);
+    double psi1_a = R::trigamma(a);
+    int    ns = n_samples;
+
+    // Fisher information matrix elements (Stacy 1962, Lawless 1980)
+    double Faa = ns * psi1_a;
+    double Fbb = ns * a * g * g / (b * b);
+    double Fgg = ns * (1.0 + a * psi_a * psi_a + 2.0 * psi_a + a * psi1_a) / (g * g);
+    double Fab = ns * g / b;
+    double Fag = -ns * psi_a / g;
+    double Fbg = -ns * (1.0 + a * psi_a) / b;
+
+    // Cramer's rule: cofactors of 3×3 symmetric matrix
+    double cof_aa = Fbb * Fgg - Fbg * Fbg;             // minor(0,0)
+    double cof_ab = -(Fab * Fgg - Fbg * Fag);           // -minor(0,1)
+    double cof_ag = Fab * Fbg - Fbb * Fag;              // minor(0,2)
+    double cof_bb = Faa * Fgg - Fag * Fag;              // minor(1,1)
+    double cof_bg = -(Faa * Fbg - Fab * Fag);           // -minor(1,2)
+    double cof_gg = Faa * Fbb - Fab * Fab;              // minor(2,2)
+
+    double det = Faa * cof_aa + Fab * cof_ab + Fag * cof_ag;
+
+    // Tikhonov regularization for near-singular Fisher matrix (small n)
+    double ridge = 1e-6 * std::max(Faa + Fbb + Fgg, 1.0) + reg;
+    det = std::max(det, ridge);
+
+    double inv_det = 1.0 / det;
+
+    out(i, 0) = cof_aa * inv_det;   // (I⁻¹)_αα
+    out(i, 1) = cof_bb * inv_det;   // (I⁻¹)_ββ
+    out(i, 2) = cof_gg * inv_det;   // (I⁻¹)_γγ
+    out(i, 3) = cof_ab * inv_det;   // (I⁻¹)_αβ
+    out(i, 4) = cof_ag * inv_det;   // (I⁻¹)_αγ
+    out(i, 5) = cof_bg * inv_det;   // (I⁻¹)_βγ
   }
-  return pvals;
+  return out;
 }
+

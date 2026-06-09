@@ -1,19 +1,19 @@
-# SGCB: Generalized-Gamma Differential Expression for Bulk RNA-seq
+# SGCB: Generalized-Gamma Distributional Regression for RNA-seq
 
-**SGCB** is an R package for two-group bulk RNA-seq differential analysis.
-It fits gene-wise three-parameter Generalized Gamma (GG) models and reports
-mean-shift and distribution-shift evidence in one result table.
+**SGCB** is an R package for differential expression (DE) and differential
+variability (DV) analysis of RNA-seq data. It fits gene-wise Generalized
+Gamma (GG) GLMs with arbitrary design matrices and reports mean-shift and
+distribution-shift evidence in one result table.
 
 ## Key Features
 
-- **GG model with three parameters** (`alpha`, `beta`, `gamma`) for location/scale/shape differences
-- **Information-geometric fitting**: natural-gradient MAP with hierarchical prior and small-sample stabilization
-- **Variance shrinkage**: TMM preprocessing + limma-style fitFDist on log2-scale pooled variance
-- **Testing outputs**: primary DE (`pvalue_t`), diagnostic channels (`pvalue_mu_wald`, `pvalue_manifold`), DD channel (`pvalue_dd` from DV + DG-gamma), and omnibus score (`SGCB_Score`)
-- **LFC shrinkage**: Cauchy prior (apeglm-style)
-- **Contrast-defined deployment wrappers**: `sgcbContrast()` and `sgcbPairwise()` map a pre-defined two-group comparison back to the unchanged `sgcbDE()` core
-- **Optional bootstrap**: calibrated confidence interval and p-value columns
-- **C++/OpenMP core** via Rcpp
+- **GG distributional regression** — `sgcbDReg()`: mean channel `log(β) = Xb` with arbitrary design matrix; optional dispersion channel `log(α) = Wd` for DV via likelihood-ratio test
+- **Blockwise estimation**: Fisher scoring (OLS) for mean, natural gradient on Fisher–Rao manifold for shape/tail, Fisher scoring (WLS) for dispersion
+- **Empirical Bayes**: limma-style fitFDist variance shrinkage + moderated t-test
+- **TMM normalization** built-in (edgeR-style)
+- **Covariate support**: batch effects, continuous covariates, multi-group contrasts
+- **Legacy two-group API** — `sgcbDE()`: fully backward-compatible, with additional DV/DG/DD diagnostic channels
+- **C++17/OpenMP core** via Rcpp — 10× faster than per-group fitting
 
 ## Installation
 
@@ -28,71 +28,98 @@ devtools::install_github("aeqby770/SGCB")
 
 **Requirements**: R >= 4.0.0 and Rcpp. A C++ compiler with C++17 and OpenMP support is recommended.
 
-## Example
-
-The example below illustrates the expected input structure and output format:
+## Quick Start — `sgcbDReg()` (recommended)
 
 ```r
 library(SGCB)
-
-# --- 1. Simulate a count matrix (500 genes x 6 samples, 3 vs 3) ---
 set.seed(42)
-n_genes <- 500
-counts <- matrix(rnbinom(n_genes * 6, mu = 200, size = 10),
-                 nrow = n_genes, ncol = 6)
-rownames(counts) <- paste0("gene_", seq_len(n_genes))
-colnames(counts) <- paste0("sample_", 1:6)
 
-# Make the first 50 genes differentially expressed (3x fold change in treat)
-counts[1:50, 4:6] <- counts[1:50, 4:6] * 3
+# Simulate 1000 genes x 10 samples (5 vs 5)
+counts <- matrix(rnbinom(1000 * 10, mu = 100, size = 5), nrow = 1000)
+rownames(counts) <- paste0("gene", 1:1000)
+counts[1:100, 6:10] <- counts[1:100, 6:10] * 3  # 100 DE genes (3x FC)
+counts[101:150, 6:10] <- matrix(                 # 50 DV genes (higher variance)
+  rnbinom(50 * 5, mu = 100, size = 1), nrow = 50)
+group <- c(rep(0, 5), rep(1, 5))
 
-# --- 2. Define groups ---
-group <- c("ctrl", "ctrl", "ctrl", "treat", "treat", "treat")
+# --- DE only (V1) ---
+res <- sgcbDReg(counts, group = group)
+head(res[res$padj < 0.05, c("gene_id", "log2FoldChange", "lfcSE", "padj")])
 
-# --- 3. Run SGCB ---
-res <- sgcbDE(counts, group)
+# --- DE + DV (V2) ---
+res2 <- sgcbDReg(counts, group = group, design_disp = "auto")
+head(res2[res2$padj_dv < 0.05, c("gene_id", "dv_log2ratio", "padj_dv")])
 
-# --- 4. View summary ---
-print(res)
-
-# --- 5. Extract significant genes ---
-sig <- significantGenes(res, padj_cutoff = 0.05)
-cat("Number of significant genes:", nrow(sig), "\n")
-
-# --- 6. Look at top hits ---
-head(sig[, c("gene_id", "log2FoldChange", "log2FC_shrunk", "pvalue", "padj",
-             "SGCB_Score")])
+# --- With batch covariate ---
+batch <- rep(c(1, 2), 5)
+design <- model.matrix(~ factor(group) + factor(batch))
+res3 <- sgcbDReg(counts, design = design, contrast = c(0, 1, 0))
 ```
 
-## The `sgcbDE()` Function
+## Legacy Example — `sgcbDE()` (two-group only)
 
-`sgcbDE()` is the main entry point. It performs filtering, normalization,
-GG fitting, hypothesis testing, multiple-testing correction, and effect-size shrinkage.
+```r
+# sgcbDE() is the original two-group entry point (fully backward-compatible)
+group <- c("ctrl", "ctrl", "ctrl", "treat", "treat", "treat")
+res_legacy <- sgcbDE(counts[, 1:6], group)
+sig <- significantGenes(res_legacy, padj_cutoff = 0.05)
+```
+
+## The `sgcbDReg()` Function
+
+`sgcbDReg()` is the recommended entry point for new analyses. It supports
+arbitrary design matrices, batch covariates, and optional DV testing.
+
+```r
+res <- sgcbDReg(
+  counts,                # integer count matrix (genes x samples), raw counts
+  design  = NULL,        # N x P design matrix (if NULL, built from group)
+  group   = NULL,        # group vector (used if design is NULL)
+  contrast = NULL,       # P-vector contrast for DE (default: last column)
+  design_disp = NULL,    # N x Q dispersion design for DV ("auto" = same as design)
+  contrast_disp = NULL,  # Q-vector contrast for DV output
+  min_count   = 10,      # gene filtering threshold
+  min_samples = 2        # minimum samples passing min_count
+)
+```
+
+**Input**: Raw (unnormalized) count matrix. TMM normalization is done internally.
+
+**Output**: A `data.frame` (class `SGCBDRegResults`).
+
+| Column | Description |
+|--------|-------------|
+| `gene_id` | Gene identifier (from rownames) |
+| `baseMean` | Mean fitted expression across all samples |
+| `log2FoldChange` | Contrast estimate in log2 scale |
+| `lfcSE` | Standard error of log2FC |
+| `stat` | Moderated t-statistic |
+| `pvalue` / `padj` | DE p-value and BH-adjusted |
+| `alpha` / `gamma` | Fitted GG shape and tail parameters |
+| `dispersion` / `dispersion_shrunk` | Pearson dispersion (raw and EB-shrunk) |
+| `pvalue_dv` / `padj_dv` | DV likelihood-ratio test (when `design_disp` given) |
+| `dv_log2ratio` | log2 ratio of group-specific alpha (DV effect size) |
+| `lr_stat_dv` | DV chi-square statistic |
+
+## The `sgcbDE()` Function (legacy)
+
+`sgcbDE()` is the original two-group entry point. It remains fully backward-compatible
+and provides additional diagnostic channels (manifold distance, DG, DD, SGCB_Score).
 
 ```r
 res <- sgcbDE(
   counts,              # integer count matrix (genes x samples), raw counts
-  group,               # character/factor vector of length ncol(counts), exactly 2 levels
-  alpha       = 0.1,   # FDR threshold used by helper print/significant filters
-  use_manifold_test = TRUE,   # report manifold channel (requires n >= 6 per group)
-  bootstrap   = FALSE, # set TRUE for calibrated bootstrap CIs (slower)
-  n_boot      = 200,   # number of bootstrap replicates (only if bootstrap=TRUE)
-  min_count   = 10,    # gene filtering: minimum count in at least min_samples samples
-  min_samples = 2,     # gene filtering: minimum number of samples passing min_count
-  config      = NULL   # optional SGCBConfig object (NULL = default settings)
+  group,               # character/factor vector, exactly 2 levels
+  alpha       = 0.1,   # FDR threshold for print/significant helpers
+  use_manifold_test = TRUE,
+  bootstrap   = FALSE,
+  min_count   = 10,
+  min_samples = 2
 )
 ```
 
-**Input**: Raw (unnormalized) count matrix. Normalization is done internally.
-
-**Group ordering**: R's `factor()` sorts levels alphabetically. The **first level is control**, the second is treatment. For example, `c("ctrl", "treat")` → ctrl is control; but `c("WT", "KO")` → **KO becomes control** (K < W). To override, pass an explicit factor:
-
-```r
-group <- factor(c("WT","WT","WT","KO","KO","KO"), levels = c("WT", "KO"))
-# Now WT = control (level 1), KO = treatment (level 2)
-```
-
-**Output**: A data.frame of class `SGCBResults` with one row per gene that passes filtering. Positive `log2FoldChange` means higher in treatment.
+**Group ordering**: R's `factor()` sorts alphabetically. First level = control.
+To override: `factor(group, levels = c("WT", "KO"))`.
 
 ## Contrast-Defined Deployment
 
@@ -294,27 +321,22 @@ See `?SGCBConfig` for the full slot list.
 ```
 SGCB/
 ├── R/
-│   ├── AllClasses.R       # S4 class: SGCBConfig (23 slots)
+│   ├── dreg.R             # sgcbDReg() — GG distributional regression (V1+V2)
+│   ├── differential.R     # sgcbDE() — legacy two-group pipeline
+│   ├── AllClasses.R       # S4 class: SGCBConfig
 │   ├── constructors.R     # SGCBConfig(), defaultSGCBConfig()
-│   ├── differential.R     # sgcbDE(), significantGenes(), print.SGCBResults()
-│   ├── utils.R            # Internal: DV/DG test helpers
+│   ├── utils.R            # Internal helpers
 │   └── RcppExports.R      # Auto-generated Rcpp wrappers
-├── src/                   # C++ core (OpenMP-parallelized)
-│   ├── info_geometry.cpp  # Main pipeline: GG fitting + shrinkage + testing
-│   ├── gg_core.cpp        # GG log-likelihood, gradient, Hessian, sampling
+├── src/
+│   ├── gg_dreg.cpp        # GG-DReg engine: V1 (mean GLM) + V2 (dispersion GLM + LR)
+│   ├── info_geometry.cpp  # Legacy pipeline: per-group GG fit + shrinkage + testing
+│   ├── gg_core.cpp        # GG log-likelihood, gradient, Hessian, Fisher info
+│   ├── estimation_accel.cpp  # TMM, LOESS, tagwise dispersion
 │   ├── bootstrap.cpp      # Resampling, BH/Holm adjustment, effect sizes
-│   ├── calibrated_bootstrap.cpp  # GG MLE + LR bootstrap
-│   ├── parametric_bootstrap.cpp  # Smoothed bootstrap (small samples)
-│   ├── permutation.cpp    # Permutation + dropout permutation
-│   ├── adaptive_inference.cpp    # Adaptive variance shrinkage
-│   ├── sgcb_adam_optimizer.cpp   # Legacy optimizer path
-│   ├── estimation_accel.cpp      # LOESS, TMM, tagwise dispersion
-│   ├── matrix_ops.cpp     # Parallel matrix operations
-│   ├── wide_shallow_ae.cpp       # Wide-shallow autoencoder
-│   ├── conditional_ae.cpp # Conditional AE (batch correction)
-│   ├── sgcb_optimized.hpp # Performance utilities
-│   └── fast_special.h     # Fast digamma/trigamma/lgamma
-├── tests/testthat/
+│   ├── fast_special.h     # Fast digamma/trigamma/lgamma
+│   ├── sgcb_optimized.h   # Performance utilities
+│   └── RcppExports.cpp    # Auto-generated Rcpp wrappers
+├── tests/
 ├── DESCRIPTION
 ├── NAMESPACE
 └── LICENSE
@@ -334,6 +356,8 @@ MIT
 If you use SGCB, please cite:
 
 ```
-SGCB: Generalized-Gamma Differential Expression for Bulk RNA-seq (2025)
+Jiang H, Che A, Han Y, Han Y. SGCB: Distribution-Aware Differential Analysis
+with Calibrated Mean, Variability, and Shape Channels Across Omics Modalities.
+IEEE Journal of Biomedical and Health Informatics (under review), 2026.
 https://github.com/aeqby770/SGCB
 ```
