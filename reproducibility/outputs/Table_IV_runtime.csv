@@ -1,0 +1,5 @@
+method,~20K_genes_seconds,>=44K_genes_seconds,DV_support
+DESeq2,~70,~314,no (mean only)
+edgeR,~59,~100,no (mean only)
+SGCB,~1363,~2347,yes (DE + DV + DG/DD)
+MDSeq,NA,~2646,yes (NB dispersion)

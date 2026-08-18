@@ -1,0 +1,13 @@
+method,test_type,dataset,n_genes,time_sec,n_sig_fdr5,n_sig_fdr10,p_median,dv_method
+dv_clrDV,dv,cerebellum_vs_cortex,63856,11.04,33059,36078,0.0187511380308355,clrDV
+dv_clrDV,dv,cerehemi_vs_cortex,63856,10.72,33090,36080,0.0184003227558827,clrDV
+dv_clrDV,dv,hippo_vs_hypo,63856,11.86,25690,28354,0.0969394307288233,clrDV
+dv_diffVar,dv,cerebellum_vs_cortex,63856,28.23,16671,19896,0.198823858349282,diffVar
+dv_diffVar,dv,cerehemi_vs_cortex,63856,29.62,15493,19147,0.210152341320807,diffVar
+dv_diffVar,dv,hippo_vs_hypo,63856,30.76,5793,8039,0.354944660076452,diffVar
+dv_GAMLSS,dv,cerebellum_vs_cortex,63856,444.82,10650,12322,0.761268971416145,GAMLSS
+dv_GAMLSS,dv,cerehemi_vs_cortex,63856,426.83,11892,13875,0.651312012300241,GAMLSS
+dv_GAMLSS,dv,hippo_vs_hypo,63856,405.72,6335,7530,0.845471058462202,GAMLSS
+dv_MDSeq,dv,cerebellum_vs_cortex,63856,3057.75,21848,24636,0.241410178750781,MDSeq
+dv_MDSeq,dv,cerehemi_vs_cortex,63856,2500.88,17658,20495,0.331268933779259,MDSeq
+dv_MDSeq,dv,hippo_vs_hypo,63856,2380.75,7593,9836,0.495528700346542,MDSeq

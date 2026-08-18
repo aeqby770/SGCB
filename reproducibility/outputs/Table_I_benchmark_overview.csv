@@ -1,0 +1,10 @@
+layer,dataset_group,evaluation_count,task
+Bulk RNA-seq,6 classic datasets,6,DE
+Bulk RNA-seq,6 NB simulations (n=3-100 per group),6,DE
+Bulk RNA-seq,GTEx liver null split,1,calibration
+Bulk RNA-seq,SEQC/MAQC-III external validation,1,DE truth
+Bulk RNA-seq,TCGA-KIRC,1,DE/DV/DG
+Bulk RNA-seq,3 GTEx brain DV contrasts,3,DV
+Pseudobulk scRNA-seq,6 corrected cohorts,6,DE
+Proteomics,4 spike-in plus 4 label-free datasets,8,DE
+Total,,32,

@@ -1,0 +1,6 @@
+method,mean_detections,mean_null_fdr,null_call_field,null_split_count
+clrDV,30613,0.348,n_sig_fdr5,10
+MDSeq,15700,0.065,n_sig_fdr5,10
+SGCB,14220,0.049,n_dv_fdr_call,10
+diffVar,12652,0.023,n_sig_fdr5,10
+GAMLSS,9626,0.031,n_sig_fdr5,10
