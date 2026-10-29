@@ -158,27 +158,14 @@ Rcpp::NumericMatrix fisher_info_diag(Rcpp::NumericVector alpha,
 }
 
 // =============================================================================
-// Schur complement of I_ββ: conditional (α,γ) precision given β
-//
-// For functionals that depend only on (α,γ) — such as CV², which is
-// scale-free — the correct variance is the CONDITIONAL variance of
-// (α̂,γ̂) given β̂, not the marginal variance from the full inverse.
-//
-// The conditional precision of (α,γ)|β is the Schur complement:
-//   S = [I_αα  I_αγ] - (1/I_ββ) [I_αβ] [I_αβ  I_βγ]
-//       [I_αγ  I_γγ]             [I_βγ]
-//
-// S is 2×2 SPD. Its inverse S⁻¹ gives Cov(α̂,γ̂|β̂).
-//
-// Why this is correct for CV²:
-//   CV² = Γ(α+2/γ)Γ(α)/Γ(α+1/γ)² − 1  (no β dependency)
-//   The profile likelihood for CV² integrates out β, yielding the
-//   conditional Fisher information S as the relevant metric.
-//
-// Why full I⁻¹ is wrong for CV²:
-//   (I⁻¹)_{αα,αγ,γγ} includes the marginal uncertainty from β estimation,
-//   which inflates the variance of β-independent functionals.
-//   Specifically: Var_marginal(α̂) > Var_conditional(α̂|β̂) when I_αβ ≠ 0.
+// Efficient (profile) information after estimating nuisance scale β.
+// S = I_(α,γ) - I_(α,γ),β I_ββ^-1 I_β,(α,γ).
+// S^-1 is exactly the (α,γ) block of the full inverse Fisher matrix;
+// it is not covariance conditional on a known β. Profiling maximizes
+// over β; it does not integrate β out.
+// Algebraically simplifying S avoids subtraction of β-dependent terms:
+// S/n = [[trigamma(α)-1/α, 1/(αγ)],
+//        [1/(αγ), (1+α trigamma(α)-1/α)/γ²]].
 //
 // Returns: n × 3 matrix with columns (S⁻¹_αα, S⁻¹_γγ, S⁻¹_αγ)
 // =============================================================================
@@ -188,42 +175,21 @@ Rcpp::NumericMatrix fisher_info_schur_ag(Rcpp::NumericVector alpha,
                                           Rcpp::NumericVector gamma,
                                           int n_samples) {
   const int n = alpha.size();
-  const double reg = 1e-10;
   Rcpp::NumericMatrix out(n, 3);
 
   #ifdef _OPENMP
   #pragma omp parallel for schedule(static)
   #endif
   for (int i = 0; i < n; i++) {
-    double a = std::max(alpha[i], 0.05);
-    double b = std::max(beta[i], reg);
-    double g = std::max(gamma[i], 0.05);
-    double psi_a  = R::digamma(a);
-    double psi1_a = R::trigamma(a);
-    int    ns = n_samples;
-
-    // Fisher information matrix elements
-    double Faa = ns * psi1_a;
-    double Fbb = ns * a * g * g / (b * b);
-    double Fgg = ns * (1.0 + a * psi_a * psi_a + 2.0 * psi_a + a * psi1_a) / (g * g);
-    double Fab = ns * g / b;
-    double Fag = -ns * psi_a / g;
-    double Fbg = -ns * (1.0 + a * psi_a) / b;
-
-    // Schur complement: S = [Faa Fag; Fag Fgg] - (1/Fbb)*[Fab; Fbg]*[Fab Fbg]
-    double inv_Fbb = 1.0 / std::max(Fbb, reg);
-    double Saa = Faa - Fab * Fab * inv_Fbb;
-    double Sgg = Fgg - Fbg * Fbg * inv_Fbb;
-    double Sag = Fag - Fab * Fbg * inv_Fbb;
-
-    // Invert 2×2 symmetric S → S⁻¹
-    double det_S = Saa * Sgg - Sag * Sag;
-    det_S = std::max(det_S, reg);
-    double inv_det = 1.0 / det_S;
-
-    out(i, 0) = Sgg * inv_det;    // S⁻¹_αα
-    out(i, 1) = Saa * inv_det;    // S⁻¹_γγ
-    out(i, 2) = -Sag * inv_det;   // S⁻¹_αγ
+    double a = alpha[i];
+    double g = gamma[i];
+    double tri = R::trigamma(a);
+    double u = tri - 1.0 / a;
+    double v = 1.0 + a * tri - 1.0 / a;
+    double denominator = n_samples * (u * v - 1.0 / (a * a));
+    out(i, 0) = v / denominator;
+    out(i, 1) = g * g * u / denominator;
+    out(i, 2) = -g / (a * denominator);
   }
   return out;
 }
@@ -240,8 +206,8 @@ Rcpp::NumericMatrix fisher_info_schur_ag(Rcpp::NumericVector alpha,
 //   Using only the diagonal of I⁻¹ (i.e. 1/I_ii) is algebraically wrong:
 //     (I⁻¹)_ii ≠ 1/I_ii  when I_ij ≠ 0
 //
-//   The correct marginal variance requires Cramer's rule on the full matrix:
-//     I⁻¹ = adj(I) / det(I)
+//   A block inverse recovers all six covariance entries without a determinant
+//   floor depending on the units of β. A determinant floor is not a ridge.
 //
 //   For a 3×3 SPD matrix, the Schur complement perspective shows that
 //   ignoring the α-β correlation (I_αβ > 0) systematically underestimates
@@ -256,50 +222,35 @@ Rcpp::NumericMatrix fisher_info_full_inverse(Rcpp::NumericVector alpha,
                                               Rcpp::NumericVector gamma,
                                               int n_samples) {
   const int n = alpha.size();
-  const double reg = 1e-10;
   Rcpp::NumericMatrix out(n, 6);
 
   #ifdef _OPENMP
   #pragma omp parallel for schedule(static)
   #endif
   for (int i = 0; i < n; i++) {
-    double a = std::max(alpha[i], 0.05);
-    double b = std::max(beta[i], reg);
-    double g = std::max(gamma[i], 0.05);
-    double psi_a  = R::digamma(a);
-    double psi1_a = R::trigamma(a);
-    int    ns = n_samples;
-
-    // Fisher information matrix elements (Stacy 1962, Lawless 1980)
-    double Faa = ns * psi1_a;
-    double Fbb = ns * a * g * g / (b * b);
-    double Fgg = ns * (1.0 + a * psi_a * psi_a + 2.0 * psi_a + a * psi1_a) / (g * g);
-    double Fab = ns * g / b;
-    double Fag = -ns * psi_a / g;
-    double Fbg = -ns * (1.0 + a * psi_a) / b;
-
-    // Cramer's rule: cofactors of 3×3 symmetric matrix
-    double cof_aa = Fbb * Fgg - Fbg * Fbg;             // minor(0,0)
-    double cof_ab = -(Fab * Fgg - Fbg * Fag);           // -minor(0,1)
-    double cof_ag = Fab * Fbg - Fbb * Fag;              // minor(0,2)
-    double cof_bb = Faa * Fgg - Fag * Fag;              // minor(1,1)
-    double cof_bg = -(Faa * Fbg - Fab * Fag);           // -minor(1,2)
-    double cof_gg = Faa * Fbb - Fab * Fab;              // minor(2,2)
-
-    double det = Faa * cof_aa + Fab * cof_ab + Fag * cof_ag;
-
-    // Tikhonov regularization for near-singular Fisher matrix (small n)
-    double ridge = 1e-6 * std::max(Faa + Fbb + Fgg, 1.0) + reg;
-    det = std::max(det, ridge);
-
-    double inv_det = 1.0 / det;
-
-    out(i, 0) = cof_aa * inv_det;   // (I⁻¹)_αα
-    out(i, 1) = cof_bb * inv_det;   // (I⁻¹)_ββ
-    out(i, 2) = cof_gg * inv_det;   // (I⁻¹)_γγ
-    out(i, 3) = cof_ab * inv_det;   // (I⁻¹)_αβ
-    out(i, 4) = cof_ag * inv_det;   // (I⁻¹)_αγ
-    out(i, 5) = cof_bg * inv_det;   // (I⁻¹)_βγ
+    double a = alpha[i];
+    double b = beta[i];
+    double g = gamma[i];
+    double psi = R::digamma(a);
+    double tri = R::trigamma(a);
+    double u = tri - 1.0 / a;
+    double v = 1.0 + a * tri - 1.0 / a;
+    double denominator = n_samples * (u * v - 1.0 / (a * a));
+    double cov_aa = v / denominator;
+    double cov_gg = g * g * u / denominator;
+    double cov_ag = -g / (a * denominator);
+    double scale_a = b / (a * g);
+    double scale_g = -b * (1.0 + a * psi) / (a * g * g);
+    double cov_ab = -(cov_aa * scale_a + cov_ag * scale_g);
+    double cov_bg = -(cov_ag * scale_a + cov_gg * scale_g);
+    double cov_bb = b * b / (n_samples * a * g * g) -
+      scale_a * cov_ab - scale_g * cov_bg;
+    out(i, 0) = cov_aa;
+    out(i, 1) = cov_bb;
+    out(i, 2) = cov_gg;
+    out(i, 3) = cov_ab;
+    out(i, 4) = cov_ag;
+    out(i, 5) = cov_bg;
   }
   return out;
 }

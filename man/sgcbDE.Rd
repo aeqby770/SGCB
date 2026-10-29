@@ -2,61 +2,94 @@
 % Please edit documentation in R/differential.R
 \name{sgcbDE}
 \alias{sgcbDE}
-\title{SGCB differential analysis for a two-group comparison}
+\title{Two-group mean and relative-variability analysis}
 \usage{
 sgcbDE(
   counts,
   group,
-  alpha = 0.1,
-  use_manifold_test = TRUE,
-  bootstrap = FALSE,
-  n_boot = 200,
+  alpha = 0.05,
   min_count = 10,
   min_samples = 2,
-  config = NULL,
-  ...
+  normalization = "tmm",
+  offset = 0.5,
+  shape_prior_sd = 1,
+  threads = as.integer(Sys.getenv("SGCB_THREADS", as.character(parallel::detectCores())))
 )
 }
 \arguments{
-\item{counts}{Count matrix (genes x samples)}
+\item{counts}{Nonnegative gene-by-sample counts or normalized abundances.}
 
-\item{group}{Grouping vector (two-level factor or character)}
+\item{group}{A factor or vector defining two independent groups.}
 
-\item{alpha}{FDR threshold, default 0.1}
+\item{alpha}{Benjamini-Hochberg threshold, default 0.05.}
 
-\item{use_manifold_test}{Whether to enable manifold distance test, default TRUE}
+\item{min_count}{Minimum value used by the expression filter.}
 
-\item{bootstrap}{Whether to compute calibrated bootstrap CIs, default FALSE}
+\item{min_samples}{Required number of samples meeting min_count.}
 
-\item{n_boot}{Number of bootstrap replicates, default 200 (only used when bootstrap=TRUE)}
+\item{normalization}{Either "tmm" for counts or "none" for normalized abundance.}
 
-\item{min_count}{Minimum count threshold, default 10}
+\item{offset}{Offset used only for descriptive log-variance and log-spread summaries.
+Zero values remain zero in the GG distribution model.}
 
-\item{min_samples}{Minimum number of samples, default 2}
+\item{shape_prior_sd}{Prior standard deviation of Q for the descriptive gene-wise GG fit; default 1.}
 
-\item{config}{SGCBConfig configuration object (optional)}
-
-\item{...}{Backward-compatible parameters that are currently accepted but not used by the current implementation}
+\item{threads}{Number of OpenMP threads. Defaults to SGCB_THREADS when set,
+otherwise to all available cores.}
 }
 \value{
-An object of class \code{SGCBResults}
+An SGCBResults data frame. pvalue is cumulative posterior null mass
+ordered by posterior null probability and normalized by total null mass;
+padj is its complete-family BH adjustment. Under the population model this
+controls posterior expected false discovery proportion. log2FoldChange and
+lfcSE are the mean and standard deviation of the joint log2 mean-ratio
+posterior, including the zero-effect class; log2FC_shrunk is the same posterior
+mean. stat is their standardized ratio, not a t-test statistic.
+de_inference_available records whether both groups have positive data.
+Unavailable mean tests remain in the family with pvalue=1.
+Variance-moderation attributes remain descriptive log-variance diagnostics.
+dv_log2_cv2_ratio is the posterior mean log2 CV-squared contrast;
+dv_cv2_ctrl/treat are exponentiated posterior mean log CV-squared values.
+dv_pvalue contains a two-sided reference-tail bound with observed zeros
+and a paired-posterior tail bound for strictly positive inputs. dv_padj
+is its complete-family BH screening adjustment. dv_ci_lower/upper give
+the corresponding 95 percent interval. The observed-zero reference
+conditions on fitted state weights and uses a local influence approximation.
+dv_se_log2_cv2 combines fitted-state variation and the local uncertainty scale.
+DE_joint_q/DV_joint_q are exploratory mixed-score
+adjustments across both channels. All input genes passing the expression
+filter remain in each adjustment family, including unavailable results.
+ctrl_mu/sigma/Q, treat_mu/sigma/Q, fit_converged, fit_covariance_available,
+and shape-Q tests describe the separate gene-wise GG diagnostic.
+logspread_pvalue is a separate median-centered Brown-Forsythe summary.
+Population controls, convergence, and posterior summaries are attributes.
+When no gene has at least four positive observations in both groups,
+DV scores are unavailable; mean inference can still borrow nuisance information.
 }
 \description{
-Fits gene-wise generalized gamma (GG) models for a two-group RNA-seq
-contrast and returns mean-shift and distribution-shift summaries in one
-result table. The pipeline uses natural-gradient hierarchical MAP
-estimation, limma-style variance moderation, and optional diagnostic
-channels derived from the fitted GG parameters.
+Mean contrasts test unconditional arithmetic means, including zero values.
+Exact generalized-gamma likelihood calculations are reused by both endpoints.
+The mean model uses pure generalized-gamma positive components and
+nonzero-frequency uncertainty. Its log-location law uses a two-normal
+approximation matching the first four cumulants; log-frequency uncertainty
+enters through its conditional first two moments. Mean inference requires
+finite first moments. A shared prior describes the control-group arithmetic
+mean and paired GG shapes under both hypotheses. A global point-null fraction
+and Gaussian nonzero effects are independent of that reference baseline.
+The first group level defines the control; changing that reference changes
+this modeling assumption. Posterior summaries condition on fitted population
+parameters and the learned finite nuisance catalogue.
+Strictly positive inputs retain the paired positive-law posterior. With observed zeros,
+relative variability fits complete positive-law and nonzero-frequency
+states within the finite-second-moment domain. The paired population prior
+is symmetrized under group exchange. Sample-aligned influence values carry
+positive-parameter and frequency covariance into each log-CV-squared contrast.
+A Studentized reference matches degrees of freedom to variance-contribution
+heterogeneity across sample columns within each group.
+Gene-wise regularized GG fits remain descriptive distribution diagnostics.
 }
 \examples{
 \donttest{
-set.seed(42)
-counts <- matrix(rnbinom(500 * 6, mu = 200, size = 10), nrow = 500, ncol = 6)
-rownames(counts) <- paste0("gene_", seq_len(500))
-counts[1:50, 4:6] <- counts[1:50, 4:6] * 3
-group <- rep(c("ctrl", "treat"), each = 3)
-res <- sgcbDE(counts, group)
-print(res)
-sig <- significantGenes(res, padj_cutoff = 0.05)
+source(system.file("examples", "minimal_workflow.R", package="SGCB"))
 }
 }

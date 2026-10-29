@@ -4,7 +4,7 @@
 \alias{significantGenes}
 \title{Extract significant genes}
 \usage{
-significantGenes(x, padj_cutoff = 0.1, lfc_cutoff = 0)
+significantGenes(x, padj_cutoff = 0.05, lfc_cutoff = 0)
 }
 \arguments{
 \item{x}{SGCBResults object}

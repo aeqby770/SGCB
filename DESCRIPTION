@@ -1,7 +1,7 @@
 Package: SGCB
 Type: Package
-Title: Shape-Guided Channel Bayesian: Generalized-Gamma Distributional Regression for Multi-Omics Differential Analysis
-Version: 0.4.1
+Title: Zero-Aware Analysis of Mean and Relative Variability in Omics Data
+Version: 0.5.8
 Authors@R: 
     c(
         person("Hongjie", "Jiang", role = "aut"),
@@ -11,32 +11,44 @@ Authors@R:
     )
 Author: Hongjie Jiang [aut], Anchi Che [aut], Yanxiao Han [aut] (co-corresponding author), Yanshuo Han [aut, cre] (co-corresponding author)
 Maintainer: Yanshuo Han <yanshuohan@dlut.edu.cn>
-Description: Distributional regression for RNA-seq based on the
-    three-parameter Generalized Gamma (GG) family. The core engine
-    sgcbDReg() fits gene-wise GG GLMs with arbitrary design matrices:
-    a mean channel log(beta) = X b via blockwise Fisher scoring, an
-    optional dispersion channel log(alpha) = W d via likelihood-ratio
-    testing for differential variability (DV), and empirical-Bayes
-    moderated t-tests for differential expression (DE). The legacy
-    two-group entry point sgcbDE() remains fully backward-compatible.
-    Preprocessing uses TMM normalization; inference uses limma-style
-    fitFDist variance shrinkage. C++17/OpenMP parallelized throughout.
+Description: Two-group analysis of unconditional arithmetic means and
+    zero-aware relative variability. Mean inference uses finite-first-moment
+    generalized-gamma states, with an approximation
+    matching four cumulants of the pure generalized-gamma log-location law.
+    Conditional first two moments represent nonzero-frequency uncertainty.
+    Empirical-Bayes posterior summaries condition
+    on mixing distributions estimated by marginal maximum likelihood.
+    A point null and Gaussian effect law act on the mean-contrast likelihood.
+    Exact generalized-gamma likelihood values are reused between endpoint fits.
+    The relative-variability model jointly learns finite-second-moment
+    generalized-gamma/shifted-mixture and nonzero-frequency states.
+    Sample-cluster influences
+    propagate parameter covariance into Studentized log-CV-squared reference
+    tails and intervals. Posterior null-mass and Studentized reference bounds
+    supply evaluated screening scores. Count inputs use TMM normalization; prepared
+    abundances can bypass it. Gene-wise generalized-gamma fits and shape
+    tests remain descriptive diagnostics. C++17/OpenMP accelerates inference.
 License: MIT + file LICENSE
 Encoding: UTF-8
-Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.3
 URL: https://github.com/aeqby770/SGCB
 BugReports: https://github.com/aeqby770/SGCB/issues
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
 Depends: 
     R (>= 4.0.0)
 Imports: 
     methods,
     Rcpp (>= 1.0.0),
+    matrixStats,
+    data.table,
+    mixsqp,
     stats,
     parallel,
     utils
 LinkingTo: 
-    Rcpp
+    Rcpp,
+    RcppArmadillo,
+    RcppEigen
 Suggests: 
     testthat (>= 3.0.0),
     DESeq2,
@@ -49,5 +61,6 @@ Collate:
     'constructors.R'
     'RcppExports.R'
     'utils.R'
+    'population.R'
     'differential.R'
     'dreg.R'

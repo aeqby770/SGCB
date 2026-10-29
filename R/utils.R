@@ -123,105 +123,46 @@
 }
 
 # -----------------------------------------------------------------------------
-# Numerical gradient of log(CV²) w.r.t. (α, β, γ)
+# Analytic gradient of log(CV²) w.r.t. (α, β, γ)
 #
 # CV² = Var/μ² = Γ(α+2/γ)Γ(α)/Γ(α+1/γ)² − 1
-# Note: CV² is β-invariant (scale-free), so ∂log(CV²)/∂β ≈ 0 analytically.
-# We compute all three partial derivatives numerically for safety.
+# CV² is β-invariant: its scale derivative is exactly zero.
 # -----------------------------------------------------------------------------
 .ggLogCV2Grad <- function(alpha, beta, gamma, eps = 1e-6) {
-  step_a <- pmax(abs(alpha) * 1e-5, eps)
-  step_b <- pmax(abs(beta) * 1e-5, eps)
-  step_g <- pmax(abs(gamma) * 1e-5, eps)
-  a_lo <- pmax(alpha - step_a, 0.01)
-  a_hi <- alpha + step_a
-  b_lo <- pmax(beta - step_b, eps)
-  b_hi <- beta + step_b
-  g_lo <- pmax(gamma - step_g, 0.01)
-  g_hi <- gamma + step_g
-
-  log_cv2 <- log(.ggVariance(alpha, beta, gamma, eps)) -
-    2 * log(.ggMean(alpha, beta, gamma, eps))
-
-  grad_a <- (log(.ggVariance(a_hi, beta, gamma, eps)) - 2 * log(.ggMean(a_hi, beta, gamma, eps)) -
-             log(.ggVariance(a_lo, beta, gamma, eps)) + 2 * log(.ggMean(a_lo, beta, gamma, eps))) / (a_hi - a_lo)
-
-  grad_b <- (log(.ggVariance(alpha, b_hi, gamma, eps)) - 2 * log(.ggMean(alpha, b_hi, gamma, eps)) -
-             log(.ggVariance(alpha, b_lo, gamma, eps)) + 2 * log(.ggMean(alpha, b_lo, gamma, eps))) / (b_hi - b_lo)
-
-  grad_g <- (log(.ggVariance(alpha, beta, g_hi, eps)) - 2 * log(.ggMean(alpha, beta, g_hi, eps)) -
-             log(.ggVariance(alpha, beta, g_lo, eps)) + 2 * log(.ggMean(alpha, beta, g_lo, eps))) / (g_hi - g_lo)
-
-  list(log_cv2 = log_cv2, grad_alpha = grad_a, grad_beta = grad_b, grad_gamma = grad_g)
+  log_moment_ratio <- lgamma(alpha + 2 / gamma) + lgamma(alpha) -
+    2 * lgamma(alpha + 1 / gamma)
+  log_cv2 <- log_moment_ratio + log(-expm1(-log_moment_ratio))
+  derivative_factor <- 1 / (-expm1(-log_moment_ratio))
+  grad_a <- derivative_factor * (digamma(alpha + 2 / gamma) + digamma(alpha) -
+                                  2 * digamma(alpha + 1 / gamma))
+  grad_g <- derivative_factor * 2 * (digamma(alpha + 1 / gamma) -
+                                     digamma(alpha + 2 / gamma)) / gamma^2
+  list(log_cv2 = log_cv2, grad_alpha = grad_a,
+       grad_beta = rep(0, length(alpha)), grad_gamma = grad_g)
 }
 
 # -----------------------------------------------------------------------------
-# [L1] Delta-method variance of log(CV²) using FULL 3×3 Fisher inverse
-#
-# The correct formula on the GG statistical manifold:
-#   Var[log(CV²)] = ∇ᵀ · I(θ)⁻¹ · ∇
-#
-# where ∇ = (∂log(CV²)/∂α, ∂log(CV²)/∂β, ∂log(CV²)/∂γ)
-# and I⁻¹ is the COMPLETE inverse (not diagonal approximation).
-#
-# The Schur complement shows why diagonal fails:
-#   (I⁻¹)_αα = (I_αα − I_αβ²/I_ββ − ...)⁻¹ ≥ 1/I_αα
-# with equality only when all off-diagonals vanish.
-# For GG, I_αβ = nγ/β ≠ 0, so the diagonal approx underestimates variance.
-#
-# [L2] Bartlett finite-sample correction:
-#   Var_finite ≈ Var_Fisher · n / (n − p)
-# where p = number of free parameters (3 for full GG, 2 when γ=1).
-# This is the first-order expansion of the exact MLE variance:
-#   Var(θ̂_MLE) = I⁻¹(1 + O(1/n)) ≈ I⁻¹ · n/(n−p)
-# Reference: Bartlett (1937 JRSS), Cox & Snell (1968 JRSS)
+# Model-based delta variance for an interior, regular, three-parameter GG MLE.
+# The inverse Schur complement equals the (α,γ) block of the full inverse.
+# It propagates estimated γ uncertainty even though the β derivative is zero.
+# No generic n/(n-p) multiplier is asserted to be a Bartlett correction.
+# This covariance alone does not validate penalized/boundary fits, model
+# misspecification, or the downstream empirical calibration in .sgcbDVTest.
 # -----------------------------------------------------------------------------
 .ggLogCV2SE_v2 <- function(alpha, beta, gamma, n_samples, eps = 1e-8) {
-  # [L1] Conditional profile variance: Var(log CV²|γ̂)
-  #
-  # Mathematical justification for conditioning on γ:
-  #   γ is estimated from POOLED data (both groups, via hierarchical prior)
-  #   with effective n ≈ n_ctrl + n_treat, giving O(1/2n) uncertainty.
-  #   Per-group α estimates have O(1/n) uncertainty. So γ̂ is √2 more
-  #   precise than α̂, and can be treated as approximately known.
-  #   This is the "conditional profile likelihood" approach.
-  #
-  # With γ known, CV² = f(α,γ₀) is a function of α alone.
-  # Profiling out β (which CV² doesn't depend on):
-  #   Var(α̂|γ) = 1 / (F_αα − F_αβ²/F_ββ)
-  #   = 1 / [n(ψ'(α) − 1/α)]   (Stacy-Lawless formula)
-  #
-  # This is larger than 1/F_αα (the diagonal-only bug) because it
-  # accounts for the α-β coupling, but not inflated by α-γ aliasing.
-
   grad <- .ggLogCV2Grad(alpha, beta, gamma, eps)
-  ga <- grad$grad_alpha  # ∂log(CV²)/∂α
-  # ∂log(CV²)/∂β ≡ 0 (scale-free), ∂log(CV²)/∂γ absorbed into γ̂ conditioning
-
-  # Fisher info elements (vectorized computation, no C++ call needed)
-  ns <- as.double(n_samples)
-  psi1_a <- trigamma(pmax(alpha, 0.05))  # ψ'(α)
-
-  # Schur complement of F_ββ in (α,β)|γ submatrix:
-  # S_α = F_αα − F_αβ²/F_ββ = n·ψ'(α) − n·(γ/β)² / (n·α·γ²/β²) = n(ψ'(α) − 1/α)
-  s_alpha <- ns * (psi1_a - 1 / pmax(alpha, 0.05))
-  s_alpha <- pmax(s_alpha, eps)
-
-  # Var(log CV²|γ) = (∂log CV²/∂α)² / S_α
-  var_logcv2 <- ga^2 / s_alpha
-
-  # [L2] Bartlett correction: n/(n-1) for the 1-parameter α submodel
-  bartlett_factor <- ns / pmax(ns - 1, 1)
-  var_logcv2 <- var_logcv2 * bartlett_factor
-
-  list(log_cv2 = grad$log_cv2, var_logcv2 = pmax(var_logcv2, eps))
+  covariance <- fisher_info_schur_ag(alpha, beta, gamma, as.integer(n_samples))
+  var_logcv2 <- grad$grad_alpha^2 * covariance[, 1] +
+    grad$grad_gamma^2 * covariance[, 2] +
+    2 * grad$grad_alpha * grad$grad_gamma * covariance[, 3]
+  list(log_cv2 = grad$log_cv2, var_logcv2 = var_logcv2)
 }
 
 # -----------------------------------------------------------------------------
-# Brown-Forsythe DV test: nonparametric safety floor
+# Brown-Forsythe test on log-normalized abundance
 # Fully vectorized matrix operations, no loops/apply.
-# Tests H₀: equal dispersion via absolute deviations from group means.
-# Returns F(1, n_total-2) p-values, or rep(1, n_genes) when data unavailable.
+# Compares absolute deviations from group medians, using the approximate
+# F reference distribution. This log-scale target is not identical to CV².
 # -----------------------------------------------------------------------------
 .brownForsytheDV <- function(norm_counts, ctrl_idx, treat_idx,
                              n_ctrl, n_treat, eps = 1e-8) {
@@ -232,9 +173,9 @@
   ctrl_mat <- log_counts[, ctrl_idx, drop = FALSE]
   treat_mat <- log_counts[, treat_idx, drop = FALSE]
 
-  # Group centers (row means — fast, vectorized)
-  cen_ctrl <- rowMeans(ctrl_mat)
-  cen_treat <- rowMeans(treat_mat)
+  # Brown-Forsythe median centers; means would instead give Levene's test.
+  cen_ctrl <- matrixStats::rowMedians(ctrl_mat)
+  cen_treat <- matrixStats::rowMedians(treat_mat)
 
   # Absolute deviations from group center
   dev_ctrl <- abs(ctrl_mat - cen_ctrl)
@@ -267,8 +208,8 @@
   log_counts <- log(norm_counts)
   ctrl_mat <- log_counts[, ctrl_idx, drop = FALSE]
   treat_mat <- log_counts[, treat_idx, drop = FALSE]
-  cen_ctrl <- rowMeans(ctrl_mat)
-  cen_treat <- rowMeans(treat_mat)
+  cen_ctrl <- matrixStats::rowMedians(ctrl_mat)
+  cen_treat <- matrixStats::rowMedians(treat_mat)
   dev_ctrl <- abs(ctrl_mat - cen_ctrl)
   dev_treat <- abs(treat_mat - cen_treat)
   md_ctrl <- rowMeans(dev_ctrl)
@@ -289,8 +230,8 @@
     sim <- log(sim + eps)
     s_ctrl <- sim[, seq_len(n_ctrl), drop = FALSE]
     s_treat <- sim[, n_ctrl + seq_len(n_treat), drop = FALSE]
-    sc <- rowMeans(s_ctrl)
-    st <- rowMeans(s_treat)
+    sc <- matrixStats::rowMedians(s_ctrl)
+    st <- matrixStats::rowMedians(s_treat)
     dc <- abs(s_ctrl - sc)
     dt <- abs(s_treat - st)
     mc <- rowMeans(dc)
@@ -306,310 +247,78 @@
 }
 
 # -----------------------------------------------------------------------------
-# DV test v3: MAD-standardized differential CV² test
-#
-# The GG-model log(CV²) difference is standardized by the genome-wide
-# MAD (median absolute deviation), not per-gene SE. This guarantees
-# calibration under the empirical null without relying on Fisher
-# information SE estimates, which can be pathologically small.
-#
-# Mathematical background:
-#   diff_g = log(CV²_treat) - log(CV²_ctrl) for each gene g
-#   Under H₀ (most genes have no DV effect):
-#     diff ~ F₀(0, σ²_null) for null genes
-#   σ_null = MAD(diff) / 0.6745  (robust estimator of null SD)
-#   z_g = diff_g / σ_null
-#
-# Properties:
-#   - Under H₀: z ~ N(0,1) by construction (MAD calibration)
-#   - Under H₁: genes with large |diff| → large |z| → small p-value
-#   - No per-gene SE needed → no pathological SE outliers
-#   - Robust to model misspecification in the SE formula
-#
-# Trade-off: genes with different true SE are treated equally.
-#   Precise genes (large α) lose some power because they share the
-#   common σ_null with imprecise genes. But FP control is guaranteed.
-#
-# The per-gene model-based SE from .ggLogCV2SE_v2() is still computed
-# and used as a WEIGHT to combine the MAD null with gene-specific info.
-# Specifically: SE_used = max(SE_model, σ_null), ensuring no gene
-# has a smaller SE than the genome-wide null SD. This preserves power
-# for genes with legitimately large SE (conservative direction) while
-# capping precision at the genome-wide level.
+# Concordant DV evidence: full GG delta-method uncertainty and median BF.
+# The two components target normalized-abundance CV2 and log-scale spread,
+# respectively. Both must support a call. For the primary log-spread null,
+# max(p_GG, p_BF) >= p_BF preserves the level of the BF anchor regardless of
+# GG fit adequacy. It is not a general test of the abundance-CV2 null.
 # -----------------------------------------------------------------------------
 .sgcbDVTest <- function(alpha_ctrl, beta_ctrl, gamma_ctrl,
                         alpha_treat, beta_treat, gamma_treat,
                         n_ctrl, n_treat, eps = 1e-8,
                         norm_counts = NULL, ctrl_idx = NULL, treat_idx = NULL) {
-
-  # Compute log(CV²) from GG parameters
   ctrl <- .ggLogCV2SE_v2(alpha_ctrl, beta_ctrl, gamma_ctrl, n_ctrl, eps)
   treat <- .ggLogCV2SE_v2(alpha_treat, beta_treat, gamma_treat, n_treat, eps)
   diff_log <- treat$log_cv2 - ctrl$log_cv2
-
-  # MAD-based null SD: robust genome-wide estimate
-  sigma_null <- stats::median(abs(diff_log), na.rm = TRUE) / 0.6745
-  sigma_null <- max(sigma_null, eps)
-
-  # Per-gene model SE (for the conservative floor)
   se_model <- sqrt(ctrl$var_logcv2 + treat$var_logcv2)
-
-  # Convex blend of model SE and global null SD (avoid hard max floor)
-  n_min <- min(n_ctrl, n_treat)
-  w_null_base <- ifelse(n_min <= 4, 0.55,
-                        ifelse(n_min <= 6, 0.45,
-                               ifelse(n_min <= 10, 0.35,
-                                      ifelse(n_min <= 20, 0.25, 0.20))))
-  se_ratio <- se_model / sigma_null
-  w_null <- w_null_base + 0.15 * pmax(0, 1 - se_ratio)
-  w_null <- pmin(pmax(w_null, 0.10), 0.80)
-  se_used <- sqrt((1 - w_null) * se_model^2 + w_null * sigma_null^2)
-
-  # =========================================================================
-  # Brown-Forsythe concordance weighting
-  #
-  # BF test on log-counts gives a nonparametric DV signal for each gene.
-  # When BF sees no signal (large p_bf), the model-based z is unreliable
-  # → inflate the SE to reduce the z-statistic.
-  # When BF confirms the signal (small p_bf), keep SE unchanged.
-  #
-  # Inflation factor: max(1, sqrt(p_bf / 0.05))
-  #   p_bf < 0.05: factor = 1 (BF agrees, no penalty)
-  #   p_bf = 0.5: factor = √10 ≈ 3.16 (BF skeptical, strong penalty)
-  #   p_bf = 0.9: factor = √18 ≈ 4.24 (BF disagrees, very strong penalty)
-  #
-  # This is an adaptive shrinkage of the z-statistic: genes with concordant
-  # parametric and nonparametric evidence retain power, while genes with
-  # only parametric evidence (potentially from unstable GG estimates)
-  # are penalized proportionally.
-  # =========================================================================
+  z_stat <- diff_log / se_model
+  p_model <- pmin(pmax(2 * stats::pnorm(-abs(z_stat)), 1e-16), 1)
   p_bf <- .brownForsytheDV(norm_counts, ctrl_idx, treat_idx, n_ctrl, n_treat, eps)
-  bf_inflation <- ifelse(
-    p_bf <= 0.05,
-    1.00,
-    ifelse(
-      p_bf <= 0.20,
-      1.00 + 0.35 * (p_bf - 0.05) / 0.15,
-      ifelse(
-        p_bf <= 0.50,
-        1.35 + 0.35 * (p_bf - 0.20) / 0.30,
-        1.70 + 0.30 * (p_bf - 0.50) / 0.50
-      )
-    )
-  )
-  bf_inflation <- pmin(pmax(bf_inflation, 1), 2.0)
-  se_used <- se_used * bf_inflation
-
-  z_stat <- diff_log / se_used
-  p_model_raw <- stats::pchisq(z_stat^2, df = 1, lower.tail = FALSE)
-  p_model_raw <- pmin(pmax(p_model_raw, eps), 1)
-  if (n_min <= 6) {
-    p_bf <- .dvBootstrapP(
-      norm_counts = norm_counts,
-      ctrl_idx = ctrl_idx,
-      treat_idx = treat_idx,
-      alpha_ctrl = alpha_ctrl,
-      beta_ctrl = beta_ctrl,
-      gamma_ctrl = gamma_ctrl,
-      alpha_treat = alpha_treat,
-      beta_treat = beta_treat,
-      gamma_treat = gamma_treat,
-      n_boot = 40L,
-      eps = eps
-    )
-  }
-  p_bf <- pmin(pmax(p_bf, eps), 1)
-
-  # Concordance-guarded model channel:
-  # require some support from nonparametric BF evidence to prevent
-  # anti-conservative parametric tails in finite samples.
-  guard_exp <- ifelse(n_min <= 4, 2.8,
-                      ifelse(n_min <= 6, 2.6,
-                             ifelse(n_min <= 10, 2.2, 2.1)))
-  p_model <- pmax(p_model_raw, p_bf^guard_exp)
-  p_model <- pmin(pmax(p_model, eps), 1)
-
-  p_mix_mat <- cbind(p_model, p_bf)
-  p_mix_mat[p_mix_mat < eps] <- eps
-  p_mix_mat[p_mix_mat > 1 - eps] <- 1 - eps
-  w_model <- ifelse(n_min <= 4, 1.0,
-                    ifelse(n_min <= 6, 1.0,
-                           ifelse(n_min <= 10, 1.0, 1.0)))
-  w_bf <- ifelse(n_min <= 4, 2.0,
-                 ifelse(n_min <= 6, 2.0,
-                        ifelse(n_min <= 10, 1.8, 1.5)))
-  t_mix <- w_model * tan(pi * (0.5 - p_mix_mat[, 1])) +
-    w_bf * tan(pi * (0.5 - p_mix_mat[, 2]))
-  p_mix <- 0.5 - atan(t_mix / (w_model + w_bf)) / pi
-  p_val <- pmax(p_mix, p_bf)
-  p_val <- pmin(pmax(p_val, eps), 1)
-
+  p_val <- pmax(p_model, p_bf)
   var_ctrl <- .ggVariance(alpha_ctrl, beta_ctrl, gamma_ctrl, eps)
   var_treat <- .ggVariance(alpha_treat, beta_treat, gamma_treat, eps)
   mean_ctrl <- .ggMean(alpha_ctrl, beta_ctrl, gamma_ctrl, eps)
   mean_treat <- .ggMean(alpha_treat, beta_treat, gamma_treat, eps)
-  cv2_ctrl <- var_ctrl / pmax(mean_ctrl^2, eps)
-  cv2_treat <- var_treat / pmax(mean_treat^2, eps)
-
   list(
     log2_var_ratio = (log(var_treat) - log(var_ctrl)) / log(2),
     log2_cv2_ratio = diff_log / log(2),
-    se_log2_cv2 = se_used / log(2),
-    stat = z_stat,
-    pvalue = p_val,
-    p_model_raw = p_model_raw,
-    p_model = p_model,
-    p_bf = p_bf,
-    p_mix = p_mix,
-    var_ctrl = var_ctrl,
-    var_treat = var_treat,
-    cv2_ctrl = cv2_ctrl,
-    cv2_treat = cv2_treat
+    se_log2_cv2 = se_model / log(2),
+    stat = z_stat, pvalue = p_val,
+    p_model_raw = p_model, p_model = p_model, p_bf = p_bf,
+    p_mix = p_val,
+    var_ctrl = var_ctrl, var_treat = var_treat,
+    cv2_ctrl = var_ctrl / pmax(mean_ctrl^2, eps),
+    cv2_treat = var_treat / pmax(mean_treat^2, eps)
   )
 }
 
 # -----------------------------------------------------------------------------
-# DG test v2: Differential Dynamics (α, γ shape parameters)
-# with conditional profile variance + Bartlett + EB shrinkage + moderated t
-#
-# Tests H₀: log(α_treat) = log(α_ctrl) and H₀: log(γ_treat) = log(γ_ctrl)
-# on the Lie algebra of (ℝ⁺)³ (log-parameterization).
-#
-# For log(α): Var[log(α̂)|β,γ] = 1/(α² · S_α) where S_α = n(ψ'(α)−1/α)
-# For log(γ): Var[log(γ̂)|α,β] = 1/(γ² · F_γγ) as a conditional diagonal
-#   approximation. Full GG Fisher has nonzero α-γ and β-γ coupling, so this
-#   channel is diagnostic and empirically calibrated rather than confirmatory.
+# Shape diagnostics propagate the full alpha-gamma covariance after
+# profiling beta. The gamma coordinate is the remaining GG coordinate when
+# mean and CV2 are specified; alpha alone is not a shape-only coordinate.
+# Diagnostic p-values use asymptotic working-model inference.
 # -----------------------------------------------------------------------------
 .sgcbDGTest <- function(alpha_ctrl, gamma_ctrl,
                         alpha_treat, gamma_treat,
                         n_ctrl, n_treat, eps = 1e-8) {
-
-  # Conditional profile variance for log(α̂): Var = 1/(α²·n(ψ'(α)−1/α))
-  psi1_ctrl <- trigamma(pmax(alpha_ctrl, 0.05))
-  psi1_treat <- trigamma(pmax(alpha_treat, 0.05))
-  s_alpha_ctrl <- as.double(n_ctrl) * (psi1_ctrl - 1 / pmax(alpha_ctrl, 0.05))
-  s_alpha_treat <- as.double(n_treat) * (psi1_treat - 1 / pmax(alpha_treat, 0.05))
-  var_loga_ctrl <- 1 / (pmax(alpha_ctrl^2, eps) * pmax(s_alpha_ctrl, eps))
-  var_loga_treat <- 1 / (pmax(alpha_treat^2, eps) * pmax(s_alpha_treat, eps))
-
-  # Bartlett correction
-  bart <- function(n) n / pmax(n - 1, 1)
-  var_loga_ctrl <- var_loga_ctrl * bart(n_ctrl)
-  var_loga_treat <- var_loga_treat * bart(n_treat)
-
-  # For log(γ̂): use a conditional diagonal Fisher approximation after fixing α,β
-  psi_ctrl <- digamma(pmax(alpha_ctrl, 0.05))
-  psi_treat <- digamma(pmax(alpha_treat, 0.05))
-  fgg_ctrl <- as.double(n_ctrl) * (1 + alpha_ctrl * psi_ctrl^2 + 2 * psi_ctrl + alpha_ctrl * psi1_ctrl) / pmax(gamma_ctrl^2, eps)
-  fgg_treat <- as.double(n_treat) * (1 + alpha_treat * psi_treat^2 + 2 * psi_treat + alpha_treat * psi1_treat) / pmax(gamma_treat^2, eps)
-  var_logg_ctrl <- 1 / (pmax(gamma_ctrl^2, eps) * pmax(fgg_ctrl, eps))
-  var_logg_treat <- 1 / (pmax(gamma_treat^2, eps) * pmax(fgg_treat, eps))
-  var_logg_ctrl <- var_logg_ctrl * bart(n_ctrl)
-  var_logg_treat <- var_logg_treat * bart(n_treat)
-
-  log_alpha_ratio <- log(pmax(alpha_treat, eps) / pmax(alpha_ctrl, eps))
-  log_gamma_ratio <- log(pmax(gamma_treat, eps) / pmax(gamma_ctrl, eps))
-
-  se_alpha <- sqrt(pmax(var_loga_ctrl + var_loga_treat, eps))
-  se_gamma <- sqrt(pmax(var_logg_ctrl + var_logg_treat, eps))
-
-  # -----------------------------------------------------------------------
-  # Efron empirical-null calibration (fixes boundary-collapse bug)
-  #
-  # Problem: when many genes have α or γ at boundary, MAD(log_ratio) = 0,
-  # destroying the MAD-based SE floor. Model SE alone underestimates noise
-  # because Fisher info assumes interior MLE.
-  #
-  # Fix: compute raw z = log_ratio / model_se, then estimate the empirical
-  # null SD from non-boundary genes (where log_ratio ≠ 0). Divide raw z
-  # by this empirical SD to get calibrated z ~ N(0,1) under null.
-  # -----------------------------------------------------------------------
-  z_alpha_raw <- log_alpha_ratio / se_alpha
-  z_gamma_raw <- log_gamma_ratio / se_gamma
-
-  # Boundary detection: genes where BOTH groups hit parameter constraints
-  at_bnd_alpha <- abs(log_alpha_ratio) < eps
-  at_bnd_gamma <- abs(log_gamma_ratio) < eps
-
-  # Empirical null SD from non-boundary genes (Efron 2004 style)
-  # Uses Winsorized IQR to be robust against both heavy tails and
-  # the boundary-collapse point mass.
-  .emp_null_sd <- function(z_raw, at_boundary) {
-    free <- !at_boundary & is.finite(z_raw)
-    if (sum(free) < 50) return(1.0)
-    z_free <- z_raw[free]
-    # IQR-based sigma (robust to both tails and boundary mass)
-    iqr_sigma <- stats::IQR(z_free, na.rm = TRUE) / 1.349
-    # Winsorized SD at 5th/95th percentile (handles heavy tails)
-    qq <- stats::quantile(z_free, c(0.05, 0.95), na.rm = TRUE)
-    z_wins <- pmin(pmax(z_free, qq[1]), qq[2])
-    wins_sd <- stats::sd(z_wins, na.rm = TRUE)
-    max(iqr_sigma, wins_sd, 1.0)
-  }
-  sigma_z_alpha <- .emp_null_sd(z_alpha_raw, at_bnd_alpha)
-  sigma_z_gamma <- .emp_null_sd(z_gamma_raw, at_bnd_gamma)
-
-  z_alpha <- z_alpha_raw / sigma_z_alpha
-  z_gamma <- z_gamma_raw / sigma_z_gamma
-
-  # Boundary genes: force z = 0 (no evidence of difference)
-  z_alpha[at_bnd_alpha] <- 0
-  z_gamma[at_bnd_gamma] <- 0
-
-  # entropy channel (objective-Bayes inspired robust shape functional)
-  # H(GG) = alpha + log(beta) + lgamma(alpha) - (alpha - 1/gamma)psi(alpha) - log(gamma)
-  # use beta=1 to isolate pure shape contribution from (alpha, gamma)
-  ent_ctrl_shape <- .ggEntropy(alpha_ctrl, beta = rep(1, length(alpha_ctrl)), gamma_ctrl, eps)
-  ent_treat_shape <- .ggEntropy(alpha_treat, beta = rep(1, length(alpha_treat)), gamma_treat, eps)
-  ent_diff <- ent_treat_shape - ent_ctrl_shape
-  at_bnd_ent <- abs(ent_diff) < eps
-  # Entropy has no analytical SE → use IQR-based sigma of non-boundary values
-  # then recalibrate using trimmed SD of central z-scores (|z|<3)
-  free_ent <- !at_bnd_ent & is.finite(ent_diff)
-  iqr_e <- if (sum(free_ent) >= 50) stats::IQR(ent_diff[free_ent], na.rm = TRUE) / 1.349 else 1.0
-  iqr_e <- max(iqr_e, eps)
-  z_entropy_raw <- ent_diff / iqr_e
-  # Trimmed SD recalibration: use central genes (|z|<3) to estimate true null SD
-  central <- free_ent & abs(z_entropy_raw) < 3
-  sigma_z_ent <- if (sum(central) >= 50) max(stats::sd(z_entropy_raw[central], na.rm = TRUE), 1.0) else 1.0
-  z_entropy <- z_entropy_raw / sigma_z_ent
-  z_entropy[at_bnd_ent] <- 0
-
-  p_alpha <- 2 * stats::pnorm(-abs(z_alpha))
-  p_gamma <- 2 * stats::pnorm(-abs(z_gamma))
-  p_entropy <- 2 * stats::pnorm(-abs(z_entropy))
-
-  # shape omnibus: pure (alpha, gamma) chi-sq(2) test
-  # Entropy excluded from omnibus — no analytical SE, unreliable at all n.
-  shape_stat <- z_alpha^2 + z_gamma^2
-  p_shape_core <- stats::pchisq(shape_stat, df = 2, lower.tail = FALSE)
-  p_shape_core <- pmin(pmax(p_shape_core, eps), 1)
-  # Cauchy combination of alpha and gamma only
-  p_cauchy_raw <- 0.5 - atan(
-    (tan(pi * (0.5 - p_alpha)) + tan(pi * (0.5 - p_gamma))) / 2
-  ) / pi
-  p_cauchy <- pmin(pmax(p_cauchy_raw, eps), 1)
-  # Bonferroni-Sidak on min(p_alpha, p_gamma)
-  p_min <- pmin(p_alpha, p_gamma)
-  p_shape_max <- 1 - (1 - pmin(pmax(p_min, eps), 1 - eps))^2
-  p_shape_max <- pmin(pmax(p_shape_max, eps), 1)
-  p_shape <- pmax(p_shape_core, p_cauchy, p_shape_max)
-  p_shape <- pmin(pmax(p_shape, eps), 1)
-
+  a0 <- pmax(alpha_ctrl, eps)
+  a1 <- pmax(alpha_treat, eps)
+  u0 <- trigamma(a0) - 1 / a0
+  u1 <- trigamma(a1) - 1 / a1
+  v0 <- 1 + a0 * trigamma(a0) - 1 / a0
+  v1 <- 1 + a1 * trigamma(a1) - 1 / a1
+  d0 <- n_ctrl * (u0 * v0 - 1 / a0^2)
+  d1 <- n_treat * (u1 * v1 - 1 / a1^2)
+  va <- v0 / (a0^2 * d0) + v1 / (a1^2 * d1)
+  vg <- u0 / d0 + u1 / d1
+  cag <- -1 / (a0^2 * d0) - 1 / (a1^2 * d1)
+  da <- log(a1 / a0)
+  dg <- log(pmax(gamma_treat, eps) / pmax(gamma_ctrl, eps))
+  za <- da / sqrt(va)
+  zg <- dg / sqrt(vg)
+  joint_stat <- (vg * da^2 + va * dg^2 - 2 * cag * da * dg) / (va * vg - cag^2)
+  ent_diff <- .ggEntropy(a1, rep(1, length(a1)), gamma_treat, eps) -
+    .ggEntropy(a0, rep(1, length(a0)), gamma_ctrl, eps)
   list(
-    alpha_log2_ratio = log_alpha_ratio / log(2),
-    alpha_se_log2 = se_alpha / log(2),
-    alpha_stat = z_alpha,
-    alpha_pvalue = p_alpha,
-    gamma_log2_ratio = log_gamma_ratio / log(2),
-    gamma_se_log2 = se_gamma / log(2),
-    gamma_stat = z_gamma,
-    gamma_pvalue = p_gamma,
-    entropy_diff = ent_diff,
-    entropy_stat = z_entropy,
-    entropy_pvalue = p_entropy,
-    shape_stat = shape_stat,
-    shape_pvalue = p_shape
+    alpha_log2_ratio = da / log(2), alpha_se_log2 = sqrt(va) / log(2),
+    alpha_stat = za, alpha_pvalue = 2 * stats::pnorm(-abs(za)),
+    gamma_log2_ratio = dg / log(2), gamma_se_log2 = sqrt(vg) / log(2),
+    gamma_stat = zg, gamma_pvalue = 2 * stats::pnorm(-abs(zg)),
+    entropy_diff = ent_diff, entropy_stat = rep(NA_real_, length(da)),
+    entropy_pvalue = rep(NA_real_, length(da)),
+    shape_stat = zg^2, shape_pvalue = 2 * stats::pnorm(-abs(zg)),
+    joint_stat = joint_stat,
+    joint_pvalue = stats::pchisq(joint_stat, 2, lower.tail = FALSE)
   )
 }
 

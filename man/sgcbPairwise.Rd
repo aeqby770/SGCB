@@ -10,13 +10,9 @@ sgcbPairwise(
   group_col,
   sample_subset = NULL,
   contrast_levels = NULL,
-  alpha = 0.1,
-  use_manifold_test = TRUE,
-  bootstrap = FALSE,
-  n_boot = 200,
+  alpha = 0.05,
   min_count = 10,
   min_samples = 2,
-  config = NULL,
   ...
 )
 }
@@ -31,21 +27,13 @@ sgcbPairwise(
 
 \item{contrast_levels}{Optional character vector restricting the levels to be paired}
 
-\item{alpha}{FDR threshold, default 0.1}
+\item{alpha}{Benjamini-Hochberg threshold, default 0.05.}
 
-\item{use_manifold_test}{Whether to enable manifold distance test, default TRUE}
+\item{min_count}{Minimum value used by the expression filter.}
 
-\item{bootstrap}{Whether to compute calibrated bootstrap CIs, default FALSE}
+\item{min_samples}{Required number of samples meeting min_count.}
 
-\item{n_boot}{Number of bootstrap replicates, default 200 (only used when bootstrap=TRUE)}
-
-\item{min_count}{Minimum count threshold, default 10}
-
-\item{min_samples}{Minimum number of samples, default 2}
-
-\item{config}{SGCBConfig configuration object (optional)}
-
-\item{...}{Backward-compatible parameters that are currently accepted but not used by the current implementation}
+\item{...}{Additional arguments forwarded to \code{sgcbDE()}.}
 }
 \value{
 A named list of \code{SGCBResults} objects with class \code{SGCBContrastList}

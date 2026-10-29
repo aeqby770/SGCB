@@ -6,8 +6,9 @@
 # SGCBConfig constructor
 # -----------------------------------------------------------------------------
 #' @title Create SGCBConfig configuration object
-#' @description Create an \code{SGCBConfig} object controlling bootstrap and
-#' parallelisation behaviour for \code{sgcbDE()}.
+#' @description Create a legacy \code{SGCBConfig} object for older bootstrap
+#' utilities. The current \code{sgcbDE()} uses its own explicit arguments
+#' and does not use this configuration object.
 #' @param bootB Number of bootstrap replicates (used when \code{bootstrap = TRUE})
 #' @param nCores Number of parallel cores
 #' @param seed Random seed for reproducibility

@@ -14,6 +14,10 @@ sgcbDReg(
   alpha = 0.05,
   min_count = 10,
   min_samples = 2,
+  prior_de = "auto",
+  prior_dv = "auto",
+  prior_sd_de = 1,
+  prior_sd_dv = 0.5,
   ...
 )
 }
@@ -37,6 +41,16 @@ If NULL, only V1 (DE) is run. If \code{"auto"}, uses the same design as
 \item{min_count}{Minimum count threshold for gene filtering.}
 
 \item{min_samples}{Minimum number of samples exceeding \code{min_count}.}
+
+\item{prior_de}{Prior inclusion probability for DE channel in joint posterior;
+numeric in (0,1) or \code{"auto"}.}
+
+\item{prior_dv}{Prior inclusion probability for DV channel in joint posterior;
+numeric in (0,1) or \code{"auto"}.}
+
+\item{prior_sd_de}{Prior SD for DE effect (log2 scale) in ABF.}
+
+\item{prior_sd_dv}{Prior SD for DV effect (log2 scale) in ABF.}
 
 \item{...}{Additional arguments forwarded to the C++ engines.}
 }

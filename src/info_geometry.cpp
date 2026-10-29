@@ -882,9 +882,12 @@ struct HierarchicalPrior {
             double z_narrow = (x - mu) / sig_narrow;
             double z_wide = (x - mu) / sig_wide;
             
-            double p_narrow = mix_weight * std::exp(-0.5 * z_narrow * z_narrow) / sig_narrow;
-            double p_wide = (1.0 - mix_weight) * std::exp(-0.5 * z_wide * z_wide) / sig_wide;
-            double p_total = p_narrow + p_wide + 1e-10;
+            double log_narrow = std::log(mix_weight) - 0.5 * z_narrow * z_narrow - std::log(sig_narrow);
+            double log_wide = std::log1p(-mix_weight) - 0.5 * z_wide * z_wide - std::log(sig_wide);
+            double log_max = std::max(log_narrow, log_wide);
+            double p_narrow = std::exp(log_narrow - log_max);
+            double p_wide = std::exp(log_wide - log_max);
+            double p_total = p_narrow + p_wide;
             
             // Posterior-probability-weighted gradient
             double w_narrow = p_narrow / p_total;
@@ -1146,114 +1149,158 @@ static List fit_gg_with_shared_prior(NumericMatrix X,
     // Use shared prior (no re-estimation)
     HierarchicalPrior prior = shared_prior;
     
-    NaturalAdamState state;
-    state.init(n_genes);
-    
-    NumericVector loss_history(cfg.n_iter);
-    
-    for (int iter = 0; iter < cfg.n_iter; iter++) {
-        state.t++;
-        double total_loss = 0;
-        std::vector<double> grad_la(n_genes), grad_lb(n_genes), grad_lg(n_genes);
-        
-        #ifdef _OPENMP
-        #pragma omp parallel for reduction(+:total_loss) schedule(static)
-        #endif
-        for (int g = 0; g < n_genes; g++) {
-            LogSpaceGGParams params;
-            params.log_alpha = log_alpha[g];
-            params.log_beta = log_beta[g];
-            params.log_gamma = log_gamma[g];
-            
-            double sum_grad_la = 0, sum_grad_lb = 0, sum_grad_lg = 0;
-            double sum_loss = 0;
-            
+    // Minimize the same per-observation MAP objective used by the gradient.
+    // Full log-coordinate Fisher scoring provides a descent metric. Armijo
+    // search evaluates the objective; projected scores define convergence.
+    const int max_iterations = 400;
+    const int max_backtracks = 30;
+    const double gradient_tolerance = 1e-5;
+    const double armijo = 1e-4;
+    const double lower[3] = {-2.3, -10.0, -0.7};
+    const double upper[3] = {4.6, 15.0, 1.6};
+    const double prior_mu[3] = {prior.mu_log_alpha, prior.mu_log_beta, prior.mu_log_gamma};
+    const double prior_sd[3] = {prior.sigma_log_alpha, prior.sigma_log_beta, prior.sigma_log_gamma};
+    const double prior_wide[3] = {prior.sigma_wide_alpha, prior.sigma_wide_beta, prior.sigma_wide_gamma};
+    NumericVector initial_objective(n_genes), final_objective(n_genes), projected_score(n_genes);
+    IntegerVector iterations(n_genes);
+    LogicalVector converged(n_genes);
+
+    #ifdef _OPENMP
+    #pragma omp parallel for schedule(dynamic, 16)
+    #endif
+    for (int gene = 0; gene < n_genes; gene++) {
+        double phi[3] = {log_alpha[gene], log_beta[gene], log_gamma[gene]};
+        for (int k = 0; k < 3; k++) phi[k] = std::max(lower[k], std::min(upper[k], phi[k]));
+        if (fix_gamma) phi[2] = 0.0;
+
+        auto objective = [&](const double* value) {
+            LogSpaceGGParams par = {value[0], value[1], value[2]};
+            double loss = 0.0;
+            for (int j = 0; j < n_samples; j++) loss -= par.loglik(X(gene, j), eps) / n_samples;
+            loss += prior_weight * prior.neg_log_prior(value[0], value[1], value[2]);
+            if (use_firth) loss -= 0.5 * compute_log_det_fisher_unit(par.alpha(), par.beta(), par.gamma(), eps) / n_samples;
+            return loss;
+        };
+        double loss = objective(phi);
+        initial_objective[gene] = loss;
+
+        for (int iter = 0; iter <= max_iterations; iter++) {
+            LogSpaceGGParams par = {phi[0], phi[1], phi[2]};
+            double gradient[3] = {0.0, 0.0, 0.0};
             for (int j = 0; j < n_samples; j++) {
-                double xgj = X(g, j);
-                sum_loss += params.loglik(xgj, eps);
-                double gla, glb, glg;
-                params.gradient(xgj, gla, glb, glg, eps);
-                sum_grad_la += gla;
-                sum_grad_lb += glb;
-                sum_grad_lg += glg;
+                double score[3];
+                par.gradient(X(gene, j), score[0], score[1], score[2], eps);
+                for (int k = 0; k < 3; k++) gradient[k] -= score[k] / n_samples;
             }
-            
-            grad_la[g] = -sum_grad_la / n_samples;
-            grad_lb[g] = -sum_grad_lb / n_samples;
-            grad_lg[g] = -sum_grad_lg / n_samples;
-            
+            double prior_grad[3];
+            prior.prior_gradient(phi[0], phi[1], phi[2], prior_grad[0], prior_grad[1], prior_grad[2]);
+            for (int k = 0; k < 3; k++) gradient[k] += prior_weight * prior_grad[k];
             if (use_firth) {
-                double a = params.alpha(), b = params.beta(), gam = params.gamma();
-                double h = 1e-4;
-                double firth_scale = 0.5 / n_samples;
-                
-                double ldf_ap = compute_log_det_fisher_unit(a * std::exp(h), b, gam, eps);
-                double ldf_am = compute_log_det_fisher_unit(a * std::exp(-h), b, gam, eps);
-                grad_la[g] -= firth_scale * (ldf_ap - ldf_am) / (2.0 * h);
-                
-                double ldf_bp = compute_log_det_fisher_unit(a, b * std::exp(h), gam, eps);
-                double ldf_bm = compute_log_det_fisher_unit(a, b * std::exp(-h), gam, eps);
-                grad_lb[g] -= firth_scale * (ldf_bp - ldf_bm) / (2.0 * h);
-                
-                if (!fix_gamma) {
-                    double ldf_gp = compute_log_det_fisher_unit(a, b, gam * std::exp(h), eps);
-                    double ldf_gm = compute_log_det_fisher_unit(a, b, gam * std::exp(-h), eps);
-                    grad_lg[g] -= firth_scale * (ldf_gp - ldf_gm) / (2.0 * h);
+                const double h = 1e-4;
+                for (int k = 0; k < 3; k++) {
+                    double plus[3] = {par.alpha(), par.beta(), par.gamma()};
+                    double minus[3] = {par.alpha(), par.beta(), par.gamma()};
+                    plus[k] *= std::exp(h);
+                    minus[k] *= std::exp(-h);
+                    gradient[k] -= 0.5 / n_samples *
+                        (compute_log_det_fisher_unit(plus[0], plus[1], plus[2], eps) -
+                         compute_log_det_fisher_unit(minus[0], minus[1], minus[2], eps)) / (2.0 * h);
                 }
             }
-            
-            if (fix_gamma) grad_lg[g] = 0.0;
-            
-            double prior_gla, prior_glb, prior_glg;
-            prior.prior_gradient(log_alpha[g], log_beta[g], log_gamma[g],
-                                prior_gla, prior_glb, prior_glg);
-            grad_la[g] += prior_weight * prior_gla;
-            grad_lb[g] += prior_weight * prior_glb;
-            grad_lg[g] += prior_weight * prior_glg;
-            
-            if (cfg.use_natural_grad) {
-                FisherMatrix3x3 F = compute_fisher_gg(
-                    params.alpha(), params.beta(), params.gamma(), n_samples);
-                double a = params.alpha();
-                double b = params.beta();
-                double gam = params.gamma();
-                double inv_aa, inv_bb, inv_gg, inv_ab;
-                F.compute_full_inverse(inv_aa, inv_bb, inv_gg, inv_ab);
-                double grad_a = grad_la[g] / a;
-                double grad_b = grad_lb[g] / b;
-                double grad_g = grad_lg[g] / gam;
-                double nat_grad_a = inv_aa * grad_a + inv_ab * grad_b;
-                double nat_grad_b = inv_ab * grad_a + inv_bb * grad_b;
-                double nat_grad_g = inv_gg * grad_g;
-                grad_la[g] = nat_grad_a / a;
-                grad_lb[g] = nat_grad_b / b;
-                grad_lg[g] = nat_grad_g / gam;
+            if (fix_gamma) gradient[2] = 0.0;
+
+            double residual = 0.0;
+            for (int k = 0; k < 3; k++) {
+                double component = std::abs(gradient[k]);
+                if (phi[k] <= lower[k] + 1e-10) component = std::max(-gradient[k], 0.0);
+                if (phi[k] >= upper[k] - 1e-10) component = std::max(gradient[k], 0.0);
+                residual = std::max(residual, component);
             }
-            
-            total_loss -= sum_loss;
-            total_loss += prior_weight * prior.neg_log_prior(log_alpha[g], log_beta[g], log_gamma[g]);
+            projected_score[gene] = residual;
+            iterations[gene] = iter;
+            converged[gene] = residual <= gradient_tolerance;
+            if (converged[gene] || iter == max_iterations) break;
+
+            const double a = par.alpha(), b = par.beta(), gam = par.gamma();
+            FisherMatrix3x3 fisher = compute_fisher_gg(a, b, gam, 1);
+            double aa = fisher.I_aa * a * a;
+            double bb = fisher.I_bb * b * b;
+            double gg = fisher.I_gg * gam * gam;
+            double ab = fisher.I_ab * a * b;
+            double ag = fisher.I_ag * a * gam;
+            double bg = fisher.I_bg * b * gam;
+            double prior_precision[3];
+            for (int k = 0; k < 3; k++) {
+                double deviation = phi[k] - prior_mu[k];
+                double pn = prior.mix_weight * std::exp(-0.5 * deviation * deviation / (prior_sd[k] * prior_sd[k])) / prior_sd[k];
+                double pw = (1.0 - prior.mix_weight) * std::exp(-0.5 * deviation * deviation / (prior_wide[k] * prior_wide[k])) / prior_wide[k];
+                prior_precision[k] = prior_weight *
+                    (pn / (prior_sd[k] * prior_sd[k]) + pw / (prior_wide[k] * prior_wide[k])) / (pn + pw + 1e-10);
+            }
+            aa += prior_precision[0];
+            bb += prior_precision[1];
+            gg += prior_precision[2];
+            // At a binding constraint, solve in the free coordinates. Clipping
+            // a full inverse direction alone retains nuisance coupling and
+            // can stall the free alpha/beta updates at the gamma boundary.
+            double step_gradient[3] = {gradient[0], gradient[1], gradient[2]};
+            bool active[3];
+            for (int k = 0; k < 3; k++) {
+                active[k] = (phi[k] <= lower[k] + 1e-10 && gradient[k] > 0.0) ||
+                            (phi[k] >= upper[k] - 1e-10 && gradient[k] < 0.0);
+                if (active[k]) step_gradient[k] = 0.0;
+            }
+            if (fix_gamma) { active[2] = true; step_gradient[2] = 0.0; }
+            if (active[0]) { aa = 1.0; ab = 0.0; ag = 0.0; }
+            if (active[1]) { bb = 1.0; ab = 0.0; bg = 0.0; }
+            if (active[2]) { gg = 1.0; ag = 0.0; bg = 0.0; }
+            double iaa, iab, iag, ibb, ibg, igg;
+            invert_sym_3x3(aa, ab, ag, bb, bg, gg, iaa, iab, iag, ibb, ibg, igg);
+            double direction[3] = {
+                -(iaa * step_gradient[0] + iab * step_gradient[1] + iag * step_gradient[2]),
+                -(iab * step_gradient[0] + ibb * step_gradient[1] + ibg * step_gradient[2]),
+                -(iag * step_gradient[0] + ibg * step_gradient[1] + igg * step_gradient[2])};
+            if (!use_natural_grad) {
+                for (int k = 0; k < 3; k++) direction[k] = -gradient[k];
+            }
+            double slope = 0.0;
+            for (int k = 0; k < 3; k++) {
+                direction[k] = std::max(lower[k], std::min(upper[k], phi[k] + direction[k])) - phi[k];
+                slope += gradient[k] * direction[k];
+            }
+            // Projection can change a coupled direction. A diagonal metric
+            // yields a feasible descent direction at an active boundary.
+            if (slope >= 0.0) {
+                const double diagonal[3] = {aa, bb, gg};
+                slope = 0.0;
+                for (int k = 0; k < 3; k++) {
+                    direction[k] = std::max(lower[k], std::min(upper[k], phi[k] - gradient[k] / diagonal[k])) - phi[k];
+                    slope += gradient[k] * direction[k];
+                }
+            }
+            double step = 1.0;
+            bool accepted = false;
+            for (int backtrack = 0; backtrack < max_backtracks; backtrack++) {
+                double candidate[3];
+                for (int k = 0; k < 3; k++) candidate[k] = phi[k] + step * direction[k];
+                if (fix_gamma) candidate[2] = 0.0;
+                double candidate_loss = objective(candidate);
+                if (std::isfinite(candidate_loss) && candidate_loss <= loss + armijo * step * slope) {
+                    for (int k = 0; k < 3; k++) phi[k] = candidate[k];
+                    loss = candidate_loss;
+                    accepted = true;
+                    break;
+                }
+                step *= 0.5;
+            }
+            if (!accepted) break;
         }
-        
-        loss_history[iter] = total_loss / n_genes;
-        
-        #ifdef _OPENMP
-        #pragma omp parallel for schedule(static)
-        #endif
-        for (int g = 0; g < n_genes; g++) {
-            state.m_la[g] = cfg.beta1 * state.m_la[g] + (1.0 - cfg.beta1) * grad_la[g];
-            state.m_lb[g] = cfg.beta1 * state.m_lb[g] + (1.0 - cfg.beta1) * grad_lb[g];
-            state.m_lg[g] = cfg.beta1 * state.m_lg[g] + (1.0 - cfg.beta1) * grad_lg[g];
-            log_alpha[g] -= cfg.lr * state.m_la[g];
-            log_beta[g] -= cfg.lr * state.m_lb[g];
-            log_gamma[g] -= cfg.lr * state.m_lg[g];
-            log_alpha[g] = std::max(-2.3, std::min(4.6, log_alpha[g]));
-            log_beta[g] = std::max(-10.0, std::min(15.0, log_beta[g]));
-            log_gamma[g] = std::max(-0.7, std::min(1.6, log_gamma[g]));
-            if (fix_gamma) log_gamma[g] = 0.0;
-        }
-        // Do not re-estimate prior — use shared prior
+        log_alpha[gene] = phi[0];
+        log_beta[gene] = phi[1];
+        log_gamma[gene] = phi[2];
+        final_objective[gene] = loss;
     }
-    
+
     NumericVector alpha_out(n_genes), beta_out(n_genes), gamma_out(n_genes);
     for (int g = 0; g < n_genes; g++) {
         alpha_out[g] = std::exp(log_alpha[g]);
@@ -1265,7 +1312,11 @@ static List fit_gg_with_shared_prior(NumericMatrix X,
         Named("alpha") = alpha_out,
         Named("beta") = beta_out,
         Named("gamma") = gamma_out,
-        Named("loss_history") = loss_history
+        Named("initial_objective") = initial_objective,
+        Named("final_objective") = final_objective,
+        Named("projected_gradient") = projected_score,
+        Named("iterations") = iterations,
+        Named("converged") = converged
     );
 }
 
@@ -1305,21 +1356,11 @@ FDistFit fit_f_dist(const NumericVector& vars, int df1, double eps = 1e-8) {
     FDistFit result;
     const int n = vars.size();
     
-    // 1. Take log and winsorize (1%-99%) to remove extremes
+    // 1. The log-F moment equations require untruncated log variances.
+    // Winsorizing these values without correcting their moments inflates d0.
     std::vector<double> log_var(n);
     for (int i = 0; i < n; i++) {
         log_var[i] = std::log(std::max((double)vars[i], eps));
-    }
-    
-    std::vector<double> sorted_lv(log_var);
-    std::sort(sorted_lv.begin(), sorted_lv.end());
-    int lo_idx = std::max(0, (int)(0.01 * n));
-    int hi_idx = std::min(n - 1, (int)(0.99 * n));
-    double lo_val = sorted_lv[lo_idx];
-    double hi_val = sorted_lv[hi_idx];
-    
-    for (int i = 0; i < n; i++) {
-        log_var[i] = std::max(lo_val, std::min(hi_val, log_var[i]));
     }
     
     // 2. Remove known df1 contribution: e_g = log(s²_g) - ψ(df1/2) + log(df1/2)
@@ -1591,7 +1632,7 @@ List adaptive_squeeze_var_hierarchical_cpp(NumericVector vars,
         // =================================================================
         // Classic: Binned median + linear interpolation (limma-trend)
         // =================================================================
-        const int N_BINS = std::min(50, std::max(5, n / 50));
+        const int N_BINS = std::min(n, std::min(50, std::max(5, n / 50)));
         
         std::vector<int> order(n);
         std::iota(order.begin(), order.end(), 0);
@@ -2744,6 +2785,8 @@ List sgcb_info_geom_inference_cpp(NumericMatrix X,
         Named("df_gene") = df_gene,
         Named("baseMean") = baseMean,
         Named("df_total") = df_total,
+        Named("fit_ctrl") = gg_ctrl,
+        Named("fit_treat") = gg_treat,
         Named("ctrl_alpha") = ae_alpha,
         Named("ctrl_beta") = ae_beta,
         Named("ctrl_gamma") = ae_gamma,

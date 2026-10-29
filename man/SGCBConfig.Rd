@@ -19,6 +19,7 @@ SGCBConfig(bootB = 1000L, nCores = parallel::detectCores(), seed = 12345L, ...)
 SGCBConfig object
 }
 \description{
-Create an \code{SGCBConfig} object controlling bootstrap and
-parallelisation behaviour for \code{sgcbDE()}.
+Create a legacy \code{SGCBConfig} object for older bootstrap
+utilities. The current \code{sgcbDE()} uses its own explicit arguments
+and does not use this configuration object.
 }

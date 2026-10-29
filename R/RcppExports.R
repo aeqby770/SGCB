@@ -53,6 +53,10 @@ sgcb_dreg_dv_cpp <- function(y, design_mean, design_disp, contrast_disp, coef_v1
     .Call(`_SGCB_sgcb_dreg_dv_cpp`, y, design_mean, design_disp, contrast_disp, coef_v1, alpha_v1, gamma_v1, max_outer_dv, max_inner_d, d_lr, eps)
 }
 
+hurdle_gg_cpp <- function(x, group, shape_precision = 1, threads = 1L) {
+    .Call(`_SGCB_hurdle_gg_cpp`, x, group, shape_precision, threads)
+}
+
 fit_gg_natural_gradient_cpp <- function(X, n_iter = -1L, lr = -1, weight_decay = -1, use_natural_grad = TRUE, use_firth_override = TRUE, use_gamma_submodel = TRUE, eps = 1e-8) {
     .Call(`_SGCB_fit_gg_natural_gradient_cpp`, X, n_iter, lr, weight_decay, use_natural_grad, use_firth_override, use_gamma_submodel, eps)
 }
@@ -83,5 +87,165 @@ sgcb_wls_ebayes_cpp <- function(y, design, contrast, gene_means, weights, eps = 
 
 sgcb_info_geom_inference_cpp <- function(X, group, n_dropout = 50L, dropout_rate = 0.2, use_natural_grad = TRUE, use_hierarchical = TRUE, use_firth = TRUE, use_gamma_submodel = TRUE, use_gg_variance = TRUE, eps = 1e-8) {
     .Call(`_SGCB_sgcb_info_geom_inference_cpp`, X, group, n_dropout, dropout_rate, use_natural_grad, use_hierarchical, use_firth, use_gamma_submodel, use_gg_variance, eps)
+}
+
+mean_joint_nuisance_collapsed_cpp <- function(L, strength, A, bvalue, warmup, retained, batch_length, save_every, cluster_every, initial_labels, threads, shared = FALSE, joint_moves = FALSE, allocation_moves = FALSE, informed_moves = FALSE) {
+    .Call(`_SGCB_mean_joint_nuisance_collapsed_cpp`, L, strength, A, bvalue, warmup, retained, batch_length, save_every, cluster_every, initial_labels, threads, shared, joint_moves, allocation_moves, informed_moves)
+}
+
+mean_effect_profile_cpp <- function(loglike, effect, scales, usable, threads, mean_candidates = NULL) {
+    .Call(`_SGCB_mean_effect_profile_cpp`, loglike, effect, scales, usable, threads, mean_candidates)
+}
+
+gaussian_location_dictionary_cpp <- function(loglike, mean, variance, positive, left, right, A, A_sd, slab_mean, slab_sd, threads = 1L, weights = NULL, log_sigma = NULL, shape = NULL) {
+    .Call(`_SGCB_gaussian_location_dictionary_cpp`, loglike, mean, variance, positive, left, right, A, A_sd, slab_mean, slab_sd, threads, weights, log_sigma, shape)
+}
+
+paired_mean_location_expectation_cpp <- function(loglike, mean, positive, left, right, prior, threads = 1L) {
+    .Call(`_SGCB_paired_mean_location_expectation_cpp`, loglike, mean, positive, left, right, prior, threads)
+}
+
+sparse_location_dictionary_cpp <- function(loglike, mean, variance, positive, left, right, A, A_sd, slab_mean, slab_sd, threads, log_sigma, shape, error_budget = 1e-12) {
+    .Call(`_SGCB_sparse_location_dictionary_cpp`, loglike, mean, variance, positive, left, right, A, A_sd, slab_mean, slab_sd, threads, log_sigma, shape, error_budget)
+}
+
+sparse_location_saved_support_cpp <- function(loglike, mean, variance, positive, left, right, A, A_sd, slab_mean, slab_sd, threads, log_sigma, shape, log_row_envelope, saved_weights, error_budget = 1e-12) {
+    .Call(`_SGCB_sparse_location_saved_support_cpp`, loglike, mean, variance, positive, left, right, A, A_sd, slab_mean, slab_sd, threads, log_sigma, shape, log_row_envelope, saved_weights, error_budget)
+}
+
+sparse_location_missing_pair_prices_cpp <- function(dictionary, density, threads = 1L, maximum_pairs = 64L, tolerance = 1e-6, maximum_seconds = 60, priced_class = -1L, start_rank = 0L) {
+    .Call(`_SGCB_sparse_location_missing_pair_prices_cpp`, dictionary, density, threads, maximum_pairs, tolerance, maximum_seconds, priced_class, start_rank)
+}
+
+append_sparse_location_pairs_cpp <- function(dictionary, added_left, added_right, weights) {
+    .Call(`_SGCB_append_sparse_location_pairs_cpp`, dictionary, added_left, added_right, weights)
+}
+
+sparse_location_class_map_cpp <- function(dictionary, weights, density, threads = 1L) {
+    .Call(`_SGCB_sparse_location_class_map_cpp`, dictionary, weights, density, threads)
+}
+
+fit_sparse_location_cpp <- function(dictionary, threads = 1L, maximum_columns = 2000L, tolerance = 1e-6, column_batch = 64L, start_weights = NULL, omitted_row = 0L, maximum_seconds = 0, fitted_class = -1L) {
+    .Call(`_SGCB_fit_sparse_location_cpp`, dictionary, threads, maximum_columns, tolerance, column_batch, start_weights, omitted_row, maximum_seconds, fitted_class)
+}
+
+sparse_location_posterior_cpp <- function(dictionary, weights, b_contrast, threads = 1L) {
+    .Call(`_SGCB_sparse_location_posterior_cpp`, dictionary, weights, b_contrast, threads)
+}
+
+anchored_location_dictionary_cpp <- function(loglike, mean, variance, positive, left, right, A, A_sd, slab_mean, slab_sd, threads, log_sigma, shape, error_budget = 1e-12, anchor = -.5, symmetric = FALSE) {
+    .Call(`_SGCB_anchored_location_dictionary_cpp`, loglike, mean, variance, positive, left, right, A, A_sd, slab_mean, slab_sd, threads, log_sigma, shape, error_budget, anchor, symmetric)
+}
+
+fit_shared_location_cpp <- function(dictionary, threads = 1L, maximum_columns = 2000L, tolerance = 1e-6, column_batch = 64L, start_weights = NULL, initial_alternative = .5, maximum_iterations = 1000L, maximum_seconds = 0) {
+    .Call(`_SGCB_fit_shared_location_cpp`, dictionary, threads, maximum_columns, tolerance, column_batch, start_weights, initial_alternative, maximum_iterations, maximum_seconds)
+}
+
+anchored_location_cdf_cpp <- function(dictionary, weights, query, threads = 1L) {
+    .Call(`_SGCB_anchored_location_cdf_cpp`, dictionary, weights, query, threads)
+}
+
+anchored_location_summary_cpp <- function(dictionary, weights, alpha, threads = 1L, tolerance = 1e-10) {
+    .Call(`_SGCB_anchored_location_summary_cpp`, dictionary, weights, alpha, threads, tolerance)
+}
+
+mean_joint_prior_concentration_changes_cpp <- function(counts, strength_from, strength_to) {
+    .Call(`_SGCB_mean_joint_prior_concentration_changes_cpp`, counts, strength_from, strength_to)
+}
+
+mean_joint_nuisance_prior_exchange_cpp <- function(L, strength, A, bvalue, warmup, retained, batch_length, save_every, cluster_every, initial_labels, threads, shared, joint_moves, allocation_moves, informed_moves, concentration_factors, cold_chains, exchange_every = 16L, tempered_refresh = 1L) {
+    .Call(`_SGCB_mean_joint_nuisance_prior_exchange_cpp`, L, strength, A, bvalue, warmup, retained, batch_length, save_every, cluster_every, initial_labels, threads, shared, joint_moves, allocation_moves, informed_moves, concentration_factors, cold_chains, exchange_every, tempered_refresh)
+}
+
+joint_population_likelihood_cpp <- function(x, group, log_sigma, shape, threads = 1L, previous_loglike = NULL) {
+    .Call(`_SGCB_joint_population_likelihood_cpp`, x, group, log_sigma, shape, threads, previous_loglike)
+}
+
+streamed_refinement_dictionary_cpp <- function(x, group, log_sigma, shape, previous_loglike, eligible, connection, threads = 1L, tolerance = 1e-6, block_rows = 256L) {
+    .Call(`_SGCB_streamed_refinement_dictionary_cpp`, x, group, log_sigma, shape, previous_loglike, eligible, connection, threads, tolerance, block_rows)
+}
+
+population_weights_cpp <- function(likelihood, start, restricted_tolerance = 1e-8, threads = 1L) {
+    .Call(`_SGCB_population_weights_cpp`, likelihood, start, restricted_tolerance, threads)
+}
+
+fit_population_dictionary_cpp <- function(loglike, solver, threads = 1L, maximum_columns = 200L, tolerance = 1e-6, start_weights = NULL, dense_start = FALSE, eligible = NULL, reuse_buffer = FALSE, checkpoint_directory = "", column_batch = 8L, input_is_log = TRUE) {
+    .Call(`_SGCB_fit_population_dictionary_cpp`, loglike, solver, threads, maximum_columns, tolerance, start_weights, dense_start, eligible, reuse_buffer, checkpoint_directory, column_batch, input_is_log)
+}
+
+fit_paired_population_cpp <- function(loglike, usable_pair, start_weights, solver, threads = 1L, maximum_columns = 200L, tolerance = 1e-6, column_batch = 8L, checkpoint_directory = "", marginal_start = NULL, sparse_output = FALSE, block_size = 32L, symmetric = FALSE, initialize_support = FALSE) {
+    .Call(`_SGCB_fit_paired_population_cpp`, loglike, usable_pair, start_weights, solver, threads, maximum_columns, tolerance, column_batch, checkpoint_directory, marginal_start, sparse_output, block_size, symmetric, initialize_support)
+}
+
+population_frequency_structure_cpp <- function(positive, totals) {
+    .Call(`_SGCB_population_frequency_structure_cpp`, positive, totals)
+}
+
+joint_population_cv_cpp <- function(loglike, positive, usable, log_sigma, shape, weight, totals, truth, grid_step = 0.025, probability_tolerance = 1e-12, alpha = .05, threads = 1L, shared_shape = FALSE, moment_increment = NULL, sharing_key = NULL, pair_left = NULL, pair_right = NULL, pair_weights = NULL, structural_mass = .5, shared_shape_only = FALSE) {
+    .Call(`_SGCB_joint_population_cv_cpp`, loglike, positive, usable, log_sigma, shape, weight, totals, truth, grid_step, probability_tolerance, alpha, threads, shared_shape, moment_increment, sharing_key, pair_left, pair_right, pair_weights, structural_mass, shared_shape_only)
+}
+
+population_mixture_likelihood_cpp <- function(x, group, log_sigma, shape, epsilon, relative_shift, threads = 1L, tolerance = 1e-7, tail_probability = 1e-12, checkpoint_directory = "", checkpoint_rows = 256L, minimum_positive = 4L, previous_loglike = NULL, previous_parameters = NULL, previous_reversed = FALSE, previous_tolerance = 1e-7, previous_tail_probability = 1e-12, sparse_output = FALSE, connection = NULL, sparse_tolerance = 1e-6, sparse_block_rows = 256L) {
+    .Call(`_SGCB_population_mixture_likelihood_cpp`, x, group, log_sigma, shape, epsilon, relative_shift, threads, tolerance, tail_probability, checkpoint_directory, checkpoint_rows, minimum_positive, previous_loglike, previous_parameters, previous_reversed, previous_tolerance, previous_tail_probability, sparse_output, connection, sparse_tolerance, sparse_block_rows)
+}
+
+read_streamed_population_columns_cpp <- function(connection, total_rows, total_columns, columns, block_rows = 256L) {
+    .Call(`_SGCB_read_streamed_population_columns_cpp`, connection, total_rows, total_columns, columns, block_rows)
+}
+
+population_mixture_mean_likelihood_cpp <- function(x, group, log_sigma, shape, epsilon, relative_shift, threads = 1L, tolerance = 1e-10, tail_probability = 1e-13) {
+    .Call(`_SGCB_population_mixture_mean_likelihood_cpp`, x, group, log_sigma, shape, epsilon, relative_shift, threads, tolerance, tail_probability)
+}
+
+population_mixture_mean_grid_cpp <- function(x, group, log_sigma, shape, epsilon, relative_shift, prior, positive_loglike, slab_sd, spacing = .01, structural_mass = .5, tail_probability = 1e-10, threads = 1L, pair_left = NULL, pair_right = NULL, pair_weight = NULL, slab_mean = NULL) {
+    .Call(`_SGCB_population_mixture_mean_grid_cpp`, x, group, log_sigma, shape, epsilon, relative_shift, prior, positive_loglike, slab_sd, spacing, structural_mass, tail_probability, threads, pair_left, pair_right, pair_weight, slab_mean)
+}
+
+mean_full_beta_transform_controls_cpp <- function() {
+    .Call(`_SGCB_mean_full_beta_transform_controls_cpp`)
+}
+
+mean_full_two_group_dictionary_cpp <- function(x, group, log_sigma, shape, epsilon, relative_shift, bvalue, positive_loglike, pair_left, pair_right, A, A_step, A_sd, slab_sd, stride, tolerance, tail_probability, structural_mass, threads, posterior_labels = NULL, reference_likelihood = NULL, slab_mean = 0, posterior_weights = NULL, selected_likelihood = FALSE) {
+    .Call(`_SGCB_mean_full_two_group_dictionary_cpp`, x, group, log_sigma, shape, epsilon, relative_shift, bvalue, positive_loglike, pair_left, pair_right, A, A_step, A_sd, slab_sd, stride, tolerance, tail_probability, structural_mass, threads, posterior_labels, reference_likelihood, slab_mean, posterior_weights, selected_likelihood)
+}
+
+mean_full_mixture_posterior_cpp <- function(likelihood, weights, b_contrast, threads = 1L) {
+    .Call(`_SGCB_mean_full_mixture_posterior_cpp`, likelihood, weights, b_contrast, threads)
+}
+
+mean_full_joint_initial_labels_cpp <- function(L, threads) {
+    .Call(`_SGCB_mean_full_joint_initial_labels_cpp`, L, threads)
+}
+
+mean_full_factorized_collapsed_cpp <- function(L, alpha, beta, bvalue, A, warmup, retained, batch_length, save_every, cluster_every, initial_labels, threads) {
+    .Call(`_SGCB_mean_full_factorized_collapsed_cpp`, L, alpha, beta, bvalue, A, warmup, retained, batch_length, save_every, cluster_every, initial_labels, threads)
+}
+
+mean_factorized_collapsed_cavity_cpp <- function(L, labels, alpha, beta, nA, threads, verify_dense = FALSE) {
+    .Call(`_SGCB_mean_factorized_collapsed_cavity_cpp`, L, labels, alpha, beta, nA, threads, verify_dense)
+}
+
+product_population_dictionary_cpp <- function(positive_loglike, frequency_loglike, threads = 1L, tolerance = 1e-6) {
+    .Call(`_SGCB_product_population_dictionary_cpp`, positive_loglike, frequency_loglike, threads, tolerance)
+}
+
+population_joint_profile_information_cpp <- function(positive_log, group, log_mean, responsibility, log_sigma, shape, epsilon, relative_shift, threads, positive_family = 0L) {
+    .Call(`_SGCB_population_joint_profile_information_cpp`, positive_log, group, log_mean, responsibility, log_sigma, shape, epsilon, relative_shift, threads, positive_family)
+}
+
+joint_state_responsibilities_cpp <- function(loglike, theta, pi_index, ntheta, npi, left, right, prior, threads = 1L) {
+    .Call(`_SGCB_joint_state_responsibilities_cpp`, loglike, theta, pi_index, ntheta, npi, left, right, prior, threads)
+}
+
+joint_logcv_reference_summary_cpp <- function(loglike, positive, usable, atom_log_cv2, mixed, left, right, prior, contrast_mean, contrast_sd, contrast_df, contrast_identified, truth, alpha = .05, probability_tolerance = 1e-8, interval_step = .025, threads = 1L, compute_intervals = TRUE) {
+    .Call(`_SGCB_joint_logcv_reference_summary_cpp`, loglike, positive, usable, atom_log_cv2, mixed, left, right, prior, contrast_mean, contrast_sd, contrast_df, contrast_identified, truth, alpha, probability_tolerance, interval_step, threads, compute_intervals)
+}
+
+mixsqp_eigen_rcpp <- function(L, U, V, w, z, x0, usesvd, runem, convtolsqp, convtolactiveset, zerothresholdsolution, zerothresholdsearchdir, suffdecr, stepsizereduce, minstepsize, identitycontribincrease, eps, maxitersqp, maxiteractiveset, verbose) {
+    .Call(`_SGCB_mixsqp_eigen_rcpp`, L, U, V, w, z, x0, usesvd, runem, convtolsqp, convtolactiveset, zerothresholdsolution, zerothresholdsearchdir, suffdecr, stepsizereduce, minstepsize, identitycontribincrease, eps, maxitersqp, maxiteractiveset, verbose)
+}
+
+fit_sparse_population_dictionary_cpp <- function(loglike, solver, threads = 1L, maximum_columns = 200L, tolerance = 1e-6, start_weights = NULL, dense_start = FALSE, eligible = NULL, reuse_buffer = FALSE, checkpoint_directory = "", column_batch = 64L, input_is_log = TRUE, maximum_seconds = 0, prepared_dictionary = NULL) {
+    .Call(`_SGCB_fit_sparse_population_dictionary_cpp`, loglike, solver, threads, maximum_columns, tolerance, start_weights, dense_start, eligible, reuse_buffer, checkpoint_directory, column_batch, input_is_log, maximum_seconds, prepared_dictionary)
 }
 
