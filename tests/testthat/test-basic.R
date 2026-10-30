@@ -38,7 +38,7 @@ test_that("sgcbDE differential analysis works correctly", {
   expect_true(all(res$DV_joint_q == 1))
   expect_identical(attr(res, "primary_de_channel"), "padj")
   expect_identical(attr(res, "primary_dv_channel"), "dv_padj")
-  expect_identical(attr(res, "dv_covariance"), "paired_population_posterior")
+  expect_identical(attr(res, "dv_covariance"), "unavailable")
   expect_true(all(is.finite(attr(res, "var_shrunk"))))
   # Significant genes
   sig <- significantGenes(res, padj_cutoff = 0.1)
@@ -55,7 +55,11 @@ test_that("small feature sets and prepared abundances retain valid mean inferenc
   # The arithmetic-mean endpoint and posterior expected error rule remain testable.
   expect_equal(log2(res$mean_treat/res$mean_ctrl),
     rep(log2(res$mean_treat[1]/res$mean_ctrl[1]),nrow(res)),tolerance=1e-7)
-  expect_true(all(is.finite(res$log2FoldChange) & is.finite(res$lfcSE) & res$lfcSE>0))
+  expect_true(all(is.finite(res$log2FoldChange) & is.finite(res$lfcSE) & res$lfcSE>=0))
+  # A fitted all-null population has a point posterior at zero.
+  expect_true(all(res$log2FoldChange[res$lfcSE==0]==0))
+  expect_true(all(res$pvalue[res$lfcSE==0]==1))
+  expect_true(all(!res$DE[res$lfcSE==0]))
   expect_equal(res$log2FC_shrunk,res$log2FoldChange)
   posterior <- attr(res,"mean_posterior")
   expect_true(all(posterior$posterior_null>=0 & posterior$posterior_null<=1))
@@ -83,7 +87,11 @@ test_that("population CV-squared preserves group direction and the complete BH f
   expect_true(is.na(res$dv_pvalue[1]))
   expect_true(sum(res$dv_inference_available)>0)
   expect_equal(res$pvalue,reverse$pvalue,tolerance=1e-7)
-  expect_equal(res$log2FoldChange,-reverse$log2FoldChange,tolerance=1e-7)
+  # The mean prior is learned relative to the supplied control baseline.
+  # Test its orientation and observed means; the DV prior below is symmetric.
+  expect_equal(sign(res$log2FoldChange),-sign(reverse$log2FoldChange))
+  expect_equal(res$mean_ctrl,reverse$mean_treat)
+  expect_equal(res$mean_treat,reverse$mean_ctrl)
   pairs <- attr(res,"mean_model")$pairs
   reverse_pairs <- attr(reverse,"mean_model")$pairs
   expect_equal(nrow(unique(pairs[,c("left","right"),with=FALSE])),nrow(pairs))

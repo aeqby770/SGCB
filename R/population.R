@@ -96,7 +96,7 @@ utils::globalVariables(c(".","Q","epsilon","left","log_sigma","moment_increment"
         refinement=2L,maximum_columns=1000L,cdf_step=.025,probability_tolerance=1e-8,
         structural_mass=.5,
         quadrature_tolerance=1e-5,pooled_tolerance=1e-6,pair_tolerance=1e-6,
-        pair_column_batch=64L,likelihood_block_rows=256L)
+        pair_column_batch=256L,likelihood_block_rows=256L)
     start_time <- proc.time()[[3]]
     positive_log <- log(x)
     positive_log[x==0] <- NA_real_

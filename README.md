@@ -1,10 +1,10 @@
 # SGCB
 
-Version 0.5.8 analyzes unconditional arithmetic means and relative variability in two independent groups.
+Version 0.5.9 analyzes unconditional arithmetic means and relative variability in two independent groups.
 
-The current method is available through `sgcbDE()`. [Release v0.5.8](https://github.com/aeqby770/SGCB/releases/tag/v0.5.8) provides the source archive and the Windows R 4.5.x binary. The originally submitted implementation is retained under the historical GitHub tag v0.4.1.
+The current method is available through `sgcbDE()`. [Release v0.5.9](https://github.com/aeqby770/SGCB/releases/tag/v0.5.9) provides the source archive and the Windows R 4.5.x binary. The originally submitted implementation is retained under the historical GitHub tag v0.4.1.
 
-## Install version 0.5.8
+## Install version 0.5.9
 
 Start a fresh R session. Set up a writable project library and install the dependencies. Windows uses CRAN binaries for these dependencies:
 
@@ -22,11 +22,11 @@ install.packages(c("Rcpp", "RcppArmadillo", "RcppEigen", "matrixStats",
 
 Choose one of the following archive installations.
 
-**Windows R 4.5.x, precompiled package.** [SGCB_0.5.8.zip](https://github.com/aeqby770/SGCB/releases/download/v0.5.8/SGCB_0.5.8.zip) was built with R 4.5.3 for x86_64 Windows and uses the verified installed implementation. Install directly from the release URL; compilation is unnecessary:
+**Windows R 4.5.x, precompiled package.** [SGCB_0.5.9.zip](https://github.com/aeqby770/SGCB/releases/download/v0.5.9/SGCB_0.5.9.zip) was built with R 4.5.3 for x86_64 Windows and uses the verified installed implementation. Install directly from the release URL; compilation is unnecessary:
 
 ```r
 install.packages(
-  "https://github.com/aeqby770/SGCB/releases/download/v0.5.8/SGCB_0.5.8.zip",
+  "https://github.com/aeqby770/SGCB/releases/download/v0.5.9/SGCB_0.5.9.zip",
   repos = NULL, type = "win.binary", lib = sgcb_library
 )
 ```
@@ -36,18 +36,18 @@ install.packages(
 ```r
 install.packages("remotes", repos = "https://cloud.r-project.org",
                  lib = sgcb_library)
-remotes::install_github("aeqby770/SGCB", ref = "v0.5.8",
+remotes::install_github("aeqby770/SGCB", ref = "v0.5.9",
                         lib = sgcb_library, dependencies = NA,
                         upgrade = "never", build_vignettes = FALSE)
 ```
 
-The release also supplies [SGCB_0.5.8.tar.gz](https://github.com/aeqby770/SGCB/releases/download/v0.5.8/SGCB_0.5.8.tar.gz). After downloading it and installing the dependencies above, use `install.packages("SGCB_0.5.8.tar.gz", repos = NULL, type = "source", lib = sgcb_library)`.
+The release also supplies [SGCB_0.5.9.tar.gz](https://github.com/aeqby770/SGCB/releases/download/v0.5.9/SGCB_0.5.9.tar.gz). After downloading it and installing the dependencies above, use `install.packages("SGCB_0.5.9.tar.gz", repos = NULL, type = "source", lib = sgcb_library)`.
 
 Load the installed package and confirm its version:
 
 ```r
 library(SGCB, lib.loc = sgcb_library)
-packageVersion("SGCB")  # 0.5.8
+packageVersion("SGCB")  # 0.5.9
 find.package("SGCB")
 ```
 
@@ -81,9 +81,9 @@ For prepared nonnegative abundances, use `normalization = "none"` and set filter
 | `sgcbDReg()`, `sgcbProtein()`, `sgcbPseudobulk()` | Retained distributional-regression implementation; the protein and pseudobulk helpers call `sgcbDReg()` |
 | `SGCBConfig()` and bootstrap helpers | Configuration and utilities retained for the earlier implementation |
 
-Use `sgcbDE()` for the v0.5.8 analysis, including independently replicated pseudobulk counts and prepared protein abundances. Aggregation, normalization, protein missingness and covariate handling follow the data's measurement and replication design. The two-group entry point requires independent groups. The companion reproduction archive supplies the manuscript's separate conditional-CV² sensitivity for covariates and donor clustering.
+Use `sgcbDE()` for the v0.5.9 analysis, including independently replicated pseudobulk counts and prepared protein abundances. Aggregation, normalization, protein missingness and covariate handling follow the data's measurement and replication design. The two-group entry point requires independent groups. The companion reproduction archive supplies the manuscript's separate conditional-CV² sensitivity for covariates and donor clustering.
 
-Version 0.5.8 changes the inference and output meanings relative to v0.4.1. Recompute an analysis when adopting the current method; [NEWS.md](NEWS.md) describes the argument and output changes.
+Version 0.5.9 changes the inference and output meanings relative to v0.4.1. Recompute an analysis when adopting the current method; [NEWS.md](NEWS.md) describes the argument and output changes.
 
 ## Model and output reference
 
@@ -117,7 +117,7 @@ The installed example uses deterministic input, needs no download, and writes SG
 
 ## Historical submitted implementation
 
-The repository's `reproducibility/` directory records the original submission. The v0.4.1 tag preserves that implementation; the current method and installed example are versioned under v0.5.8.
+The repository's `reproducibility/` directory records the original submission. The v0.4.1 tag preserves that implementation; the current method and installed example are versioned under v0.5.9.
 
 The command below installs the original v0.4.1 method:
 
@@ -125,8 +125,8 @@ The command below installs the original v0.4.1 method:
 remotes::install_github("aeqby770/SGCB", ref = "v0.4.1")
 ```
 
-Use the v0.5.8 source or Windows archive for the current method. The v0.4.1 tag supports reproduction of the original submission.
+Use the v0.5.9 source or Windows archive for the current method. The v0.4.1 tag supports reproduction of the original submission.
 
 Population DV requires at least four positive observations per group. When no gene is eligible in both groups, DE is returned and every DV result is unavailable. The population dictionary assumes finite second moments; a finite posterior estimate does not establish that the true distribution has them. Sparse data, influential tails, small groups and misspecification limit power and calibration. It estimates observed abundance variability, not latent count dispersion. `sgcbDE()` itself fits two independent groups. The accompanying `development/57_cv_moment_regression.cpp` and `59_covariate_CV_sensitivity.R` provide a separate conditional-CV² sensitivity with covariates and donor clustering. That moment model is not a covariate-adjusted GG likelihood. Legacy regression and bootstrap helpers are not the current primary DV pipeline.
 
-On the fixed observed-zero inputs, v0.5.8 detected 216/1,000 true CV² changes with no finite-null or undefined-truth calls at 10:50, and 613 true changes with three false calls at 50:50. Observed-zero 10:10 yielded no discoveries. Positive-panel true/false counts were 598/1, 1,190/1 and 1,186/1 across 10:10, 10:50 and 50:50. Matched Gamma and lognormal controls, all fixed scenarios, unavailable effects and undefined moment truths are reported with their distinct denominators. Mean-only reference validations reuse the unchanged v0.5.7 mean implementation and original inputs. REPRODUCE.md identifies each retained evidence source.
+On the fixed observed-zero inputs, v0.5.9 detected 216/1,000 true CV² changes with no finite-null or undefined-truth calls at 10:50, and 613 true changes with three false calls at 50:50. Observed-zero 10:10 yielded no discoveries. Positive-panel true/false counts were 598/1, 1,190/1 and 1,186/1 across 10:10, 10:50 and 50:50. Matched Gamma and lognormal controls, all fixed scenarios, unavailable effects and undefined moment truths are reported with their distinct denominators. Mean-only reference validations reuse the unchanged v0.5.7 mean implementation and original inputs. REPRODUCE.md identifies each retained evidence source.

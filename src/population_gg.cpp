@@ -4649,6 +4649,21 @@ Rcpp::NumericMatrix joint_logcv_reference_summary_cpp(Rcpp::NumericMatrix loglik
         return std::make_pair(std::max({0.0,lo[0]+lo[1]-1,lo[2]+lo[3]-1}),
             std::min(1.0,std::min(hi[0],hi[1])+std::min(hi[2],hi[3])));
     };
+    // All entries depend on the fitted pair, not the gene.
+    std::vector<std::pair<double,double>> zero_strict(H),zero_inclusive(H),reverse_zero(H);
+    std::vector<double> interval_lower(H,R_PosInf),interval_upper(H,R_NegInf);
+    for(int h=0;h<H;++h) {
+        if(!(defined[h]&&known[h]))continue;
+        zero_strict[h]=pair_cdf(h,0,true,false);
+        zero_inclusive[h]=pair_cdf(h,0,false,false);
+        reverse_zero[h]=pair_cdf(h,0,false,true);
+        for(int c=0;c<4;++c)if(contrast_identified(h,c)&&
+            std::isfinite(contrast_mean(h,c))&&std::isfinite(contrast_sd(h,c))&&contrast_df(h,c)>0) {
+            const double z=R::qt(probability_tolerance/32,contrast_df(h,c),false,false);
+            interval_lower[h]=std::min(interval_lower[h],contrast_mean(h,c)-z*contrast_sd(h,c));
+            interval_upper[h]=std::max(interval_upper[h],contrast_mean(h,c)+z*contrast_sd(h,c));
+        }
+    }
     const std::vector<std::string> names={"effect","se","p","cdf_zero_lower","cdf_zero_upper",
         "cdf_truth_lower","cdf_truth_upper","available","undefined_mass",
         "parameter_unidentified_mass","numerical_cdf_error","lower","upper","width",
@@ -4677,18 +4692,15 @@ Rcpp::NumericMatrix joint_logcv_reference_summary_cpp(Rcpp::NumericMatrix loglik
             mu0+=w*atom_log_cv2[left[h]];mu1+=w*atom_log_cv2[right[h]];
             if(!known[h]){unidentified+=w;lo_tail+=w;hi_tail+=w;continue;}
             second+=w*(point[h]*point[h]+contrast_sd(h,0)*contrast_sd(h,0));
-            const auto fl=pair_cdf(h,0,true,false),fu=pair_cdf(h,0,false,false),
-                right_cdf=pair_cdf(h,0,false,true);
+            const auto& fl=zero_strict[h];
+            const auto& fu=zero_inclusive[h];
+            const auto& right_cdf=reverse_zero[h];
             flo0+=w*fl.first;fhi0+=w*fu.second;
             lo_tail+=w*fu.second;hi_tail+=w*right_cdf.second;
             if(w<=probability_tolerance/H){omitted+=w;continue;}
             active.push_back(h);
-            for(int c=0;c<4;++c)if(contrast_identified(h,c)&&
-                std::isfinite(contrast_mean(h,c))&&std::isfinite(contrast_sd(h,c))&&contrast_df(h,c)>0) {
-                const double z=R::qt(probability_tolerance/32,contrast_df(h,c),false,false);
-                lower=std::min(lower,contrast_mean(h,c)-z*contrast_sd(h,c));
-                upper=std::max(upper,contrast_mean(h,c)+z*contrast_sd(h,c));
-            }
+            lower=std::min(lower,interval_lower[h]);
+            upper=std::max(upper,interval_upper[h]);
         }
         const double unknown=undefined+unidentified;
         out(i,8)=undefined;out(i,9)=unidentified;out(i,10)=omitted;

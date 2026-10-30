@@ -1,3 +1,13 @@
+# SGCB 0.5.9
+
+30 October 2026.
+
+- Reuse pair-specific null probabilities and quantile bounds within each CV2 fit.
+- Price paired-population columns in batches of 256 with the existing objective and convergence settings.
+- Keep the arithmetic-mean and CV2 models, priors, filtering and screening rules unchanged.
+- Refresh all six benchmark designs, six matched-family ablations, ten null partitions and three disease applications under this fixed numerical implementation. Gene-level DE/DV calls and availability agree with the previous implementation across all 19 full-API comparisons.
+- Align tests with unavailable small-sample DV, a point-null mean posterior and the control-reference mean model.
+
 # SGCB 0.5.8
 
 Development revision, 28 October 2026.

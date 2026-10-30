@@ -1,7 +1,7 @@
 Package: SGCB
 Type: Package
 Title: Zero-Aware Analysis of Mean and Relative Variability in Omics Data
-Version: 0.5.8
+Version: 0.5.9
 Authors@R: 
     c(
         person("Hongjie", "Jiang", role = "aut"),
