@@ -22,7 +22,7 @@ install.packages(c("Rcpp", "RcppArmadillo", "RcppEigen", "matrixStats",
 
 Choose one of the following archive installations.
 
-**Windows R 4.5.x, precompiled package.** [SGCB_0.5.9.zip](https://github.com/aeqby770/SGCB/releases/download/v0.5.9/SGCB_0.5.9.zip) was built with R 4.5.3 for x86_64 Windows and uses the verified installed implementation. Install directly from the release URL; compilation is unnecessary:
+**Windows R 4.5.x, precompiled package.** [SGCB_0.5.9.zip](https://github.com/aeqby770/SGCB/releases/download/v0.5.9/SGCB_0.5.9.zip) was built with R 4.5.3 for x86_64 Windows. Install directly from the release URL; compilation is unnecessary:
 
 ```r
 install.packages(
@@ -89,7 +89,7 @@ Version 0.5.9 changes the inference and output meanings relative to v0.4.1. Reco
 
 sgcbDE() retains zeros and estimates total-abundance CV² from positive generalized-gamma (GG) and shifted-mixture states. Strictly positive inputs use the paired positive-law posterior with nonzero frequency fixed at one. Inputs containing observed zeros fit joint positive-law/nonzero-frequency states, retain nested Gamma and lognormal support, and use sample-aligned positive-parameter and frequency influences in a matched Student reference. The mixture reference preserves the base-CV² lower bound. Paired state weights are fitted by marginal maximum likelihood and averaged with their group reversal after fitting. The current implementation conditions on those learned weights.
 
-Regularized gene-wise GG fits remain descriptive diagnostics. Their fixed N(0,1) shape prior and expected-information sampling covariance describe those diagnostic fits; they do not supply the primary population DV score.
+Regularized gene-wise GG fits provide descriptive diagnostics using a fixed N(0,1) shape prior and expected-information sampling covariance. Primary DV inference uses the paired population model.
 
 | Output | Meaning |
 |---|---|
@@ -107,13 +107,13 @@ The DE model uses pure finite-first-moment GG states and integrates the state-sp
 
 The mean dictionary uses sparse row storage with an analytic likelihood/moment omission budget. `mean_integration_checks` reports the KKT gap, storage size, posterior identity check and posterior-null omission bound. This storage approximation is separate from the conditional-location model approximation.
 
-Group levels follow `factor(group)`; effects compare the second level with the first. Specify an ordered factor to control direction. Separate-channel BH defines `DE`, `DV`, and `channel`. An unavailable DV value is not a measured null result; inspect `dv_inference_available` alongside category labels. With observed zeros, DV scores use the matched local reference; strictly positive scores use the positive-law posterior. Their calibration is assessed on the supplied fixed controls and null partitions. Combined-family adjustment is exploratory.
+Group levels follow `factor(group)`; effects compare the second level with the first. Specify an ordered factor to control direction. Separate-channel BH defines `DE`, `DV`, and `channel`. Interpret category labels alongside `dv_inference_available`, which identifies eligible DV estimates. With observed zeros, DV scores use the matched local reference; strictly positive scores use the positive-law posterior. Their calibration is assessed on the supplied fixed controls and null partitions. Combined-family adjustment is exploratory.
 
 Count defaults are `normalization="tmm"`, `offset=0.5`, `min_count=10`, `min_samples=2`, `alpha=0.05`, and `shape_prior_sd=1`. The offset is used only for descriptive log-scale and log-spread summaries. Prepared nonnegative abundances use `normalization="none"`; positive intensities can use `offset=0`, while data containing zeros require a positive offset for the log summaries. Handle protein missingness and biological replication before fitting.
 
 DE state pairs, posterior summaries, numerical checks and component times are recorded in `mean_model`, `mean_posterior`, `mean_integration_checks` and `mean_timing`.
 
-The installed example uses deterministic input, needs no download, and writes SGCB_minimal_results.csv. It demonstrates effects, availability, intervals and channel membership. Population catalogues, reference parameters, convergence and component times are stored in population_model, population_posterior and population_timing. The mean_model, mean_posterior, mean_integration_checks and mean_timing attributes record the separate mean model. Group fit details remain in fit_diagnostics. The companion reproduction archive's REPRODUCE.md gives the fixed-input experiment, figure and document commands. Install the source archive or run R CMD INSTALL on the directory containing this DESCRIPTION file.
+The installed example uses deterministic input and writes `SGCB_minimal_results.csv`, showing effects, availability, intervals and channel membership. Population-model attributes are `population_model`, `population_posterior` and `population_timing`; gene-wise diagnostic details are in `fit_diagnostics`. The companion archive's `REPRODUCE.md` gives experiment, figure and document commands.
 
 ## Historical submitted implementation
 
@@ -127,6 +127,8 @@ remotes::install_github("aeqby770/SGCB", ref = "v0.4.1")
 
 Use the v0.5.9 source or Windows archive for the current method. The v0.4.1 tag supports reproduction of the original submission.
 
-Population DV requires at least four positive observations per group. When no gene is eligible in both groups, DE is returned and every DV result is unavailable. The population dictionary assumes finite second moments; a finite posterior estimate does not establish that the true distribution has them. Sparse data, influential tails, small groups and misspecification limit power and calibration. It estimates observed abundance variability, not latent count dispersion. `sgcbDE()` itself fits two independent groups. The accompanying `development/57_cv_moment_regression.cpp` and `59_covariate_CV_sensitivity.R` provide a separate conditional-CV² sensitivity with covariates and donor clustering. That moment model is not a covariate-adjusted GG likelihood. Legacy regression and bootstrap helpers are not the current primary DV pipeline.
+## Input requirements and evaluation
 
-On the fixed observed-zero inputs, v0.5.9 detected 216/1,000 true CV² changes with no finite-null or undefined-truth calls at 10:50, and 613 true changes with three false calls at 50:50. Observed-zero 10:10 yielded no discoveries. Positive-panel true/false counts were 598/1, 1,190/1 and 1,186/1 across 10:10, 10:50 and 50:50. Matched Gamma and lognormal controls, all fixed scenarios, unavailable effects and undefined moment truths are reported with their distinct denominators. Mean-only reference validations reuse the unchanged v0.5.7 mean implementation and original inputs. REPRODUCE.md identifies each retained evidence source.
+Population DV requires at least four positive observations per group and assumes finite second moments. When every gene lacks eligible DV observations, the function returns DE estimates with DV marked unavailable. Sparse positives, influential tails and model misspecification affect power and calibration. The target is variability in observed abundance. `sgcbDE()` fits two independent groups; the companion `development/57_cv_moment_regression.cpp` and `59_covariate_CV_sensitivity.R` supply a separate conditional-moment sensitivity for covariates and donor clustering. The interface table above identifies the legacy regression and bootstrap helpers.
+
+On the fixed observed-zero inputs, v0.5.9 detected 216/1,000 true CV² changes with no finite-null or undefined-truth calls at 10:50, and 613 true changes with three false calls at 50:50. Observed-zero 10:10 yielded no discoveries. Positive-panel true/false counts were 598/1, 1,190/1 and 1,186/1 across 10:10, 10:50 and 50:50. Matched Gamma and lognormal controls report detection, effect accuracy and availability by scenario. Mean-only reference validations use the unchanged v0.5.7 mean implementation and original inputs. `REPRODUCE.md` identifies the implementation and inputs for each evaluation.
