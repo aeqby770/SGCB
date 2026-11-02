@@ -1,8 +1,7 @@
 // Adapted from mixsqp 0.3-54, distributed under the MIT license.
 // Copyright (c) 2017-2020 Youngseok Kim, Peter Carbonetto,
 // Matthew Stephens, and Mihai Anitescu.
-// SGCB changes: defer an unused terminal Hessian and evaluate the exact
-// Hessian cross-product with Eigen. Objective, EM, SQP and controls unchanged.
+// The terminal Hessian is deferred; exact Hessian cross-products use Eigen.
 // [[Rcpp::depends(RcppArmadillo, RcppEigen)]]
 // [[Rcpp::plugins(openmp)]]
 #define ARMA_DONT_PRINT_ERRORS

@@ -31,12 +31,12 @@ install.packages(
 )
 ```
 
-**Source installation.** Install the fixed GitHub tag on other platforms or to compile locally. This requires a C++17 compiler; Windows users need Rtools matching their R version. The verified Windows toolchain is R 4.5.3 with Rtools45. See [R's source-installation instructions](https://stat.ethz.ch/R-manual/R-devel/library/utils/html/install.packages.html).
+**Source installation.** Install the current v0.5.9 source from GitHub on other platforms or to compile locally. This requires a C++17 compiler; Windows users need Rtools matching their R version. The verified Windows toolchain is R 4.5.3 with Rtools45. See [R's source-installation instructions](https://stat.ethz.ch/R-manual/R-devel/library/utils/html/install.packages.html).
 
 ```r
 install.packages("remotes", repos = "https://cloud.r-project.org",
                  lib = sgcb_library)
-remotes::install_github("aeqby770/SGCB", ref = "v0.5.9",
+remotes::install_github("aeqby770/SGCB", ref = "main",
                         lib = sgcb_library, dependencies = NA,
                         upgrade = "never", build_vignettes = FALSE)
 ```
@@ -115,9 +115,13 @@ DE state pairs, posterior summaries, numerical checks and component times are re
 
 The installed example uses deterministic input and writes `SGCB_minimal_results.csv`, showing effects, availability, intervals and channel membership. Population-model attributes are `population_model`, `population_posterior` and `population_timing`; gene-wise diagnostic details are in `fit_diagnostics`. The companion archive's `REPRODUCE.md` gives experiment, figure and document commands.
 
+## Reproduce the manuscript
+
+The [v0.5.9 release](https://github.com/aeqby770/SGCB/releases/tag/v0.5.9) also provides the [complete reproduction archive](https://github.com/aeqby770/SGCB/releases/download/v0.5.9/SGCB_CSBJ_revision_0.5.9_reproducibility.zip), containing the fixed inputs, analysis scripts, comparator outputs and reported results. Start with `REPRODUCE.md` after extraction. The repository's `reproducibility/` directory contains the current analysis, visualization and document-generation code separately from the R package.
+
 ## Historical submitted implementation
 
-The repository's `reproducibility/` directory records the original submission. The v0.4.1 tag preserves that implementation; the current method and installed example are versioned under v0.5.9.
+The v0.4.1 tag preserves the originally submitted source and reproduction files. The current method and installed example are versioned under v0.5.9.
 
 The command below installs the original v0.4.1 method:
 
@@ -129,6 +133,6 @@ Use the v0.5.9 source or Windows archive for the current method. The v0.4.1 tag 
 
 ## Input requirements and evaluation
 
-Population DV requires at least four positive observations per group and assumes finite second moments. When every gene lacks eligible DV observations, the function returns DE estimates with DV marked unavailable. Sparse positives, influential tails and model misspecification affect power and calibration. The target is variability in observed abundance. `sgcbDE()` fits two independent groups; the companion reproduction archive supplies `development/57_cv_moment_regression.cpp` and the executable example `experiments/sle_classical_monocytes_biology.R` for conditional-moment CV² sensitivity with covariates and donor clustering. The KIRC and liver sensitivity fits and sample designs are also included in that archive. The interface table above identifies the legacy regression and bootstrap helpers.
+Population DV requires at least four positive observations per group and assumes finite second moments. When every gene lacks eligible DV observations, the function returns DE estimates with DV marked unavailable. Sparse positives, influential tails and model misspecification affect power and calibration. The target is variability in observed abundance. `sgcbDE()` fits two independent groups; the companion `development/57_cv_moment_regression.cpp` and `experiments/sle_classical_monocytes_biology.R` supply a separate conditional-moment sensitivity for covariates and donor clustering. The interface table above identifies the legacy regression and bootstrap helpers.
 
 On the fixed observed-zero inputs, v0.5.9 detected 216/1,000 true CV² changes with no finite-null or undefined-truth calls at 10:50, and 613 true changes with three false calls at 50:50. Observed-zero 10:10 yielded no discoveries. Positive-panel true/false counts were 598/1, 1,190/1 and 1,186/1 across 10:10, 10:50 and 50:50. Matched Gamma and lognormal controls report detection, effect accuracy and availability by scenario. Mean-only reference validations use the unchanged v0.5.7 mean implementation and original inputs. `REPRODUCE.md` identifies the implementation and inputs for each evaluation.

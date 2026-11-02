@@ -2,7 +2,6 @@
 
 - Precompute pair-specific zero probabilities and quantile-search bounds once per CV² fit.
 - Evaluate paired-population columns in batches of 256.
-- Keep the statistical models, priors, filtering and screening rules unchanged.
 - Update tests for unavailable DV estimates, point-null mean posteriors and control-reference mean inference.
 
 # SGCB 0.5.8

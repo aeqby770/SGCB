@@ -252,7 +252,7 @@ struct InfoGeomConfig {
 // =============================================================================
 // Robust profile-likelihood initialization
 //
-// Core ideas absorbed from recent GG estimation literature:
+// Profile-likelihood initialization steps:
 //   1) Reparameterize via Y = X^gamma -> Gamma(alpha, theta)
 //   2) Profile out alpha/theta for fixed gamma
 //   3) Solve alpha by 1D root: log(alpha)-psi(alpha)=c
@@ -552,11 +552,11 @@ List fit_gg_natural_gradient_cpp(NumericMatrix X,
         log_gamma[g] = init.log_gamma;
     }
     
-    // Adam state
+    // Momentum state
     NaturalAdamState state;
     state.init(n_genes);
     
-    // Training loop
+    // Optimization iterations
     NumericVector loss_history(cfg.n_iter);
     
     for (int iter = 0; iter < cfg.n_iter; iter++) {
@@ -781,7 +781,7 @@ struct HierarchicalPrior {
                             const std::vector<double>& log_gamma) {
         int n = log_alpha.size();
         
-        // Fix B: use median for location estimation to prevent DE gene contamination of hyperprior
+        // Estimate hyperprior location with the median to limit DE-gene influence.
         {
             std::vector<double> tmp(n);
             for (int i = 0; i < n; i++) tmp[i] = log_alpha[i];
@@ -831,7 +831,6 @@ struct HierarchicalPrior {
         sigma_wide_gamma = std::max(sigma_log_gamma * 3.0, std::sqrt(var_lg) * 1.5);
         
         // Mixture weight π₀: estimated via simple EM from log_alpha distribution (Efron 2004 two-groups)
-        // Data-driven rather than hard-coded
         mix_weight = 0.9;  // EM initial value
         for (int em_iter = 0; em_iter < 5; em_iter++) {
             double sum_resp = 0;
@@ -950,7 +949,7 @@ List fit_gg_hierarchical_bayes_cpp(NumericMatrix X,
     HierarchicalPrior prior;
     prior.estimate_from_data(log_alpha, log_beta, log_gamma);
     
-    // Adam state
+    // Momentum state
     NaturalAdamState state;
     state.init(n_genes);
     
@@ -1112,7 +1111,7 @@ List fit_gg_hierarchical_bayes_cpp(NumericMatrix X,
 }
 
 // =============================================================================
-// Fix A: GG MAP fitting with shared prior (internal function, not exported)
+// GG MAP fitting with a shared prior (internal function).
 // Same logic as fit_gg_hierarchical_bayes_cpp but uses externally given prior without re-estimation
 // =============================================================================
 static List fit_gg_with_shared_prior(NumericMatrix X,
@@ -1407,7 +1406,7 @@ FDistFit fit_f_dist(const NumericVector& vars, int df1, double eps = 1e-8) {
 
 // =============================================================================
 // GG-informed variance shrinkage (using GG theoretical variance as prior target)
-// Resolves the "split-brain" problem: shares information between GG parameter estimates and t-test variances
+// Shares information between GG parameter estimates and t-test variances.
 // =============================================================================
 // [[Rcpp::export]]
 List adaptive_squeeze_var_gg_informed_cpp(NumericVector vars,
@@ -1478,7 +1477,7 @@ List adaptive_squeeze_var_gg_informed_cpp(NumericVector vars,
 }
 
 // =============================================================================
-// limma-style variance shrinkage (squeezeVar): fitFDist replaces ad-hoc hierarchical formula
+// limma-style variance shrinkage (squeezeVar) using fitFDist
 // Model: s²_g ~ s0² · F(df_residual, d0), posterior = (d0·s0² + df·s²_g)/(d0+df)
 // Reference: Smyth (2004) Stat. Appl. Genet. Mol. Biol., limma::squeezeVar()
 // =============================================================================
@@ -1613,10 +1612,7 @@ List adaptive_squeeze_var_hierarchical_cpp(NumericVector vars,
     int df_residual = std::max(n_samples - 2, 1);
     
     // =====================================================================
-    // Step 1: compute variance trend
-    // Two methods:
-    //   (A) Binned median + linear interpolation (classic limma-trend)
-    //   (B) Random Fourier Features ridge regression (P2: Meir scaling law)
+    // Step 1: compute a binned-median variance trend with linear interpolation.
     // =====================================================================
     std::vector<double> log_bm(n);
     for (int i = 0; i < n; i++) {
@@ -1626,7 +1622,7 @@ List adaptive_squeeze_var_hierarchical_cpp(NumericVector vars,
     std::vector<double> var_trend(n);
     
     if (use_rff_trend) {
-        stop("use_rff_trend is disabled in the 1D limma-trend path; wide-shallow variance priors must be developed as a separate multi-feature module.");
+        stop("use_rff_trend must be FALSE; adaptive_squeeze_var_hierarchical_cpp uses a binned-median variance trend.");
     }
     {
         // =================================================================
@@ -1977,7 +1973,7 @@ inline bool solve_dense_inplace(std::vector<double>& A, std::vector<double>& b, 
 }
 
 // =============================================================================
-// Route A: WLS + Empirical Bayes moderated t-test (general design matrix)
+// WLS + Empirical Bayes moderated t-test (general design matrix)
 //
 // y:        genes × samples (log-expression, e.g. logCPM)
 // design:   samples × n_coef
@@ -2190,7 +2186,7 @@ List sgcb_info_geom_inference_cpp(NumericMatrix X,
         }
     }
     
-    // Fix A: estimate shared hyperprior from pooled data, used by both groups
+    // Estimate a shared hyperprior from pooled data for both groups.
     // Avoids ctrl/treat estimating separate priors, which causes DE contamination → implicit batch effect
     List gg_ctrl, gg_treat;
     if (use_hierarchical) {
@@ -2262,16 +2258,16 @@ List sgcb_info_geom_inference_cpp(NumericMatrix X,
             sum_lt += lv;
             sum_lt2 += lv * lv;
         }
-        // Fix D: log2FC computed as mean difference directly in log2 space, same scale as variance
+        // Compute log2FC as the difference in log2 means, on the variance scale.
         log2FC[g] = sum_lt / n_treat - sum_lc / n_ctrl;
         var_ctrl_log2[g] = (sum_lc2 - sum_lc * sum_lc / n_ctrl) / std::max(1, n_ctrl - 1) + eps;
         var_treat_log2[g] = (sum_lt2 - sum_lt * sum_lt / n_treat) / std::max(1, n_treat - 1) + eps;
     }
     
     // =========================================================================
-    // GG-Informed Variance Shrinkage v2 (Trend + Fisher df)
+    // GG-informed variance shrinkage (trend and Fisher degrees of freedom)
     //
-    // Fix: old per-gene GG variance was an "intra-gene estimator" (correlated with s_g²/δ̂_g),
+    // Per-gene GG variance is an "intra-gene estimator" (correlated with s_g²/δ̂_g),
     //      violating Smyth (2004)'s independent χ² condition → reference distribution mismatch.
     //
     // Approach 1 (Trend): smooth GG variance along baseMean via binned-median
@@ -2470,10 +2466,10 @@ List sgcb_info_geom_inference_cpp(NumericMatrix X,
     
     // Step 6: Gene-specific EB shrinkage (Trend + bidirectional GG fusion)
     // Unified formula:
-    //   s0_trend_g = var_prior_trend[g] (from P0: mean-dependent trend prior)
+    //   s0_trend_g = var_prior_trend[g] (mean-dependent trend prior)
     //   w_eff_g = w_base * min(1, d_gg_eff_g / d0)  (GG precision controls weight)
     //   s0_gene = exp((1-w_eff)*log(s0_trend_g) + w_eff*log(v_gg_trend_g))
-    //   df_total remains fixed (safety: never modify reference distribution thickness)
+    //   df_total remains fixed for the reference distribution.
     //
     // n<=5: w_base=0 → s0_gene = s0_trend_g (pure trend prior, not fixed s0²)
     // n>5: bidirectional fusion, GG can raise or lower variance, bounded by d_gg_eff
@@ -2500,7 +2496,7 @@ List sgcb_info_geom_inference_cpp(NumericMatrix X,
             double log_vgg = std::log(std::max((double)var_gg_trend[g], eps));
             s0_gene = std::exp((1.0 - w_eff) * log_s0t + w_eff * log_vgg);
         }
-        // clamp: do not allow final prior to deviate too far from trend prior (safety valve)
+        // Bound the final prior relative to the trend prior.
         s0_gene = std::max(0.1 * s0_trend_g, std::min(10.0 * s0_trend_g, s0_gene));
         
         var_shrunk[g] = (d0 * s0_gene + df_residual * std::max((double)pooled_var_log2[g], eps)) / df_total;
@@ -2618,7 +2614,6 @@ List sgcb_info_geom_inference_cpp(NumericMatrix X,
     
     // =========================================================================
     // Manifold distance test (captures overall displacement of α,β,γ)
-    // Core innovation of SGCB: tests not only the mean (β) but also transcriptional dynamics (α,γ)
     // =========================================================================
     NumericVector geodesic_dist(n_genes), pvalue_manifold(n_genes);
     std::vector<double> dist_vec(n_genes);
@@ -2722,7 +2717,7 @@ List sgcb_info_geom_inference_cpp(NumericMatrix X,
         scale_hat = std::max(chi_q50 / std::max(chi_ref_q50, eps), eps);
     }
 
-    // Fix E: disable manifold test when n_min < 6 (asymptotic theory unreliable)
+    // Disable the manifold test when n_min < 6 (asymptotic theory unreliable).
     bool manifold_enabled = (n_min >= 6);
     for (int g = 0; g < n_genes; g++) {
         if (manifold_enabled) {
@@ -2735,7 +2730,7 @@ List sgcb_info_geom_inference_cpp(NumericMatrix X,
     }
     
     // =========================================================================
-    // P1a: primary p-value = Cauchy(moderated-t, GG-mean Wald) when n>=6
+    // Primary p-value = Cauchy(moderated-t, GG-mean Wald) when n>=6
     // Cauchy combination (Liu & Xie 2020 JASA):
     //   T = w1*tan(π(0.5-p1)) + w2*tan(π(0.5-p2))
     //   p = 0.5 - atan(T/(w1+w2))/π

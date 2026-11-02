@@ -1,4 +1,4 @@
-# Native population CV2 inference shared with the fixed-data analyses.
+# Population inference for arithmetic means and zero-aware CV2.
 #' @import data.table
 NULL
 

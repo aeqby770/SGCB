@@ -1,5 +1,4 @@
 ^\.gitignore$
-^DIAGNOSIS_ablation\.md$
 ^sgcb_output$
 ^reproducibility$
 ^.*\.Rproj$

@@ -72,8 +72,7 @@ test_that("population CV-squared preserves group direction and the complete BH f
   counts <- matrix(exp(sin(seq_len(240))/2+seq_len(240)/1000),nrow=12)
   counts[1,1:7] <- 0
   group <- factor(rep(c("A","B"),each=10))
-  # Replay the same existing integration state to test exact group equivariance;
-  # this does not generate observations or introduce a seed experiment.
+  # Test exact group equivariance using the same integration state.
   rng_before <- get(".Random.seed",envir=.GlobalEnv)
   res <- sgcbDE(counts,group,normalization="none",min_count=0,min_samples=1,threads=as.integer(Sys.getenv("SGCB_THREADS","1")))
   rng_after <- get(".Random.seed",envir=.GlobalEnv)

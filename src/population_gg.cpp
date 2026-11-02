@@ -1448,7 +1448,7 @@ Rcpp::List fit_paired_population_cpp(Rcpp::NumericMatrix loglike,
     std::vector<R_xlen_t> support;std::vector<double> weights(1,1);
     if(initialize_support) {
         // One occupied pair anchors column zero; every other initial pair is
-        // free to reweight immediately. No frozen compound start remains.
+        // free to reweight immediately.
         weights[0]=start_weights[anchor]/initial_total;
         for(R_xlen_t k:initial_support)if(k!=anchor) {
             support.push_back(k);weights.push_back(start_weights[k]/initial_total);

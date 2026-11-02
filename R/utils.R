@@ -1,8 +1,8 @@
 # =============================================================================
 # SGCB: Utility functions module
-# DV/DG test functions for the sgcbDE() pipeline
+# Generalized-gamma moments, DV/DG diagnostics and posterior helpers
 #
-# v2 (2026-03-26): finite-sample corrections for small-sample DV/DG tests
+# Finite-sample calculations for DV/DG diagnostics
 #   DV: conditional alpha Schur complement after profiling beta and fixing gamma
 #   DG-alpha: same conditional alpha Schur complement
 #   DG-gamma: conditional diagonal Fisher approximation, empirical-null calibrated
@@ -10,7 +10,7 @@
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# GG moment functions (unchanged)
+# GG moment functions
 # -----------------------------------------------------------------------------
 .ggVariance <- function(alpha, beta, gamma, eps = 1e-8) {
   a <- pmax(alpha, eps)
@@ -160,7 +160,6 @@
 
 # -----------------------------------------------------------------------------
 # Brown-Forsythe test on log-normalized abundance
-# Fully vectorized matrix operations, no loops/apply.
 # Compares absolute deviations from group medians, using the approximate
 # F reference distribution. This log-scale target is not identical to CV².
 # -----------------------------------------------------------------------------
@@ -181,7 +180,7 @@
   dev_ctrl <- abs(ctrl_mat - cen_ctrl)
   dev_treat <- abs(treat_mat - cen_treat)
 
-  # Brown-Forsythe F-statistic (fully vectorized)
+  # Brown-Forsythe F-statistic
   md_ctrl <- rowMeans(dev_ctrl)
   md_treat <- rowMeans(dev_treat)
   grand <- (n_ctrl * md_ctrl + n_treat * md_treat) / n_total

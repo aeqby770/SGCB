@@ -1,4 +1,4 @@
-# Deterministic input for demonstrating the API, not a performance benchmark.
+# Deterministic input demonstrating the public API.
 CONFIG <- list(threads = as.integer(Sys.getenv("SGCB_THREADS", as.character(parallel::detectCores()))),
                n_per_group = 50L, n_genes = 120L,
                output = "SGCB_minimal_results.csv")
