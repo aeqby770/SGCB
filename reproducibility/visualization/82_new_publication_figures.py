@@ -68,7 +68,7 @@ CONFIG = {"paths": {"root": Path(sys.argv[1])}, "threads": int(os.environ["SGCB_
                 "panel_title_y":1.08,
                 "truth_band": [1.012,0,.018,1], "truth_colors": ["#D5DDD6","#D7BF8A","#7C97AA"]},
     "zero_figure": {"figsize": [7.25,7.8], "height_ratios": [1.10,.85,2.1],
-                    "method_labels": ["Gene-wise GG","Population GG","Gamma","Lognormal","Delta","Jackknife"]},
+                    "method_labels": ["Gene-wise GG","SGCB","Gamma","Lognormal","Empirical delta","Jackknife"]},
     "detail": {"ink": "#192E38", "outline": "#4D6975", "interval_width": 1.5,
                "interval_caps": 2.7, "legend_size": 7.8,
                "feature_point_sizes": [2.5,4.5,6,6], "feature_point_alpha": [.34,.72,.80,.80]},
@@ -192,7 +192,7 @@ b0.grid(True)
 b1.grid(True)
 b2.grid(True)
 b0.legend(handles=[Line2D([],[],color=C["DE"],marker="o",ms=4,label="Gene-wise GG"),
-    Line2D([],[],color=C["DV"],marker="D",ms=4,label="Population GG")],
+    Line2D([],[],color=C["DV"],marker="D",ms=4,label="SGCB")],
     loc="lower left",ncols=1,frameon=False,fontsize=7.0,handlelength=1.3,labelspacing=.2,
     title="3,800 finite truths",title_fontsize=6.8)
 
@@ -214,7 +214,7 @@ c.set(title=r"$\mathbf{c}$",xlabel="",ylabel="")
 c.tick_params(axis="y",labelsize=7.0,length=0,labelrotation=0)
 c.tick_params(axis="x",labelsize=7.3,length=0,labelrotation=0)
 availability_header=c.secondary_xaxis("top")
-availability_header.set_xticks([1,3],labels=["Gene-wise GG","Population GG"])
+availability_header.set_xticks([1,3],labels=["Gene-wise GG","SGCB"])
 availability_header.tick_params(length=0,labelsize=7.3,pad=4)
 availability_header.spines["top"].set_visible(False)
 c.axvline(2,color="white",lw=2.2)

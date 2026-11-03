@@ -9,7 +9,9 @@ from scipy.stats import beta
 CONFIG = {"paths": {"root": Path(sys.argv[1]),
     "comparator_results":Path(sys.argv[1])/"tmp/revision_0.5.5_integrated/results"}, "threads": int(os.environ["SGCB_THREADS"]), "plot": {}, "cohorts": ["sle_classical_monocytes_2021","masld_liver_2023"],
     "cohort_labels": {"sle_classical_monocytes_2021":"SLE monocytes","masld_liver_2023":"MASLD liver"},
-    "mean_fit_version": "0.5.7"}
+    "mean_fit_version": "0.5.7",
+    "publication_metadata_columns": ['run_id', 'fit_started', 'native_source_id', 'mean_inference_source_id', 'input_id', 'version', 'release_version', 'fit_package_version', 'fit_dataset', 'fit_version', 'sgcb_fit_version', 'sgcb_reuse_reason', 'reuse_reason', 'result_label'],
+    "publication_label_replacements": {'^sgcb_\\d+\\.\\d+\\.\\d+_': '', '^current_kirc$': 'KIRC', '_streamed$': '', '^current arithmetic-mean public API$': 'SGCB arithmetic-mean inference', '^unchanged archived matched-input fit$': 'Matched-input comparator fit', '^CLR of archived counts plus 0\\.5$': 'CLR of counts plus 0.5', '^current public API DV component$': 'API DV component', '^current Gamma DV refit$': 'Gamma-restricted DV fit', '^current lognormal DV refit$': 'Lognormal-restricted DV fit', '^complete retained output$': 'available for all partitions', '^partial retained output$': 'available for some partitions', '^archived comparator context; no current population fit$': 'Gene-wise GG and comparator analysis in GTEx brain tissues', '^historical gene-wise covariance diagnostic$': 'gene-wise covariance diagnostic'}}
 os.environ["OMP_NUM_THREADS"] = str(CONFIG["threads"])
 plt.rcParams.update(CONFIG["plot"])
 ROOT = CONFIG["paths"]["root"]
@@ -104,10 +106,10 @@ null_availability["fixed_partitions"] = 10
 null_availability["missing_partitions"] = 10-null_availability.completed_partitions
 null_availability["status"] = np.select([
     null_availability.completed_partitions.eq(10),null_availability.completed_partitions.gt(0)],
-    ["complete retained output","partial retained output"],default="matched output unavailable")
+    ["available for all partitions","available for some partitions"],default="matched output unavailable")
 
 
-# The original brain comparator fits are retained as historical context.
+# Gene-wise GG and native comparator summaries for GTEx brain tissues.
 brain = pd.read_csv(R / "current_brain_common_summary.csv")
 brain["method"] = brain.method.replace({"SGCB":"Gene-wise GG"})
 brain_authors = pd.concat([
@@ -126,10 +128,11 @@ brain = pd.concat([brain,
         calls=brain_authors.author_calls,n_common_genes=brain_authors.genes)],ignore_index=True)
 brain = brain.rename(columns={"overlap_SGCB":"overlap_gene_wise_GG",
     "jaccard_SGCB":"jaccard_gene_wise_GG","reference_SGCB_calls":"reference_gene_wise_GG_calls"})
-brain["analysis_role"] = "archived comparator context; no current population fit"
-qpcr = pd.read_csv(R / f"sgcb_{CONFIG['mean_fit_version']}_seqc_qpcr_metrics.csv").assign(
-    fit_version=CONFIG["mean_fit_version"], used_endpoint="arithmetic_mean_DE",
-    reuse_reason="unchanged mean implementation and inputs")
+brain["analysis_role"] = "Gene-wise GG and comparator analysis in GTEx brain tissues"
+qpcr = pd.read_csv(R / f"sgcb_{CONFIG['mean_fit_version']}_seqc_qpcr_metrics.csv")
+qpcr["sgcb_fit_version"] = pd.Series(CONFIG["mean_fit_version"], index=qpcr.index).where(qpcr.method.eq("SGCB"))
+qpcr["sgcb_used_endpoint"] = pd.Series("arithmetic_mean_DE", index=qpcr.index).where(qpcr.method.eq("SGCB"))
+qpcr["sgcb_reuse_reason"] = pd.Series("saved mean-endpoint fit on the same inputs", index=qpcr.index).where(qpcr.method.eq("SGCB"))
 sim = pd.read_csv(R / "current_simulation_metrics.csv").assign(method="Gene-wise GG",inference_role="diagnostic log-mean / CV2 baseline")
 sim_scenario = pd.read_csv(R / "current_simulation_scenarios.csv").assign(method="Gene-wise GG",inference_role="diagnostic log-mean / CV2 baseline")
 proteins_legacy = pd.concat([
@@ -142,13 +145,14 @@ protein_matched = pd.concat([
     pd.read_csv(R / f"sgcb_{CONFIG['mean_fit_version']}_protein_sgsds_ratio2_metrics.csv"),
     pd.read_csv(R / f"sgcb_{CONFIG['mean_fit_version']}_protein_sgsds_ratio2.5_metrics.csv"),
     pd.read_csv(R / f"sgcb_{CONFIG['mean_fit_version']}_protein_cptac_ups1_metrics.csv")], ignore_index=True)
-protein_matched["fit_version"] = CONFIG["mean_fit_version"]
-protein_matched["used_endpoint"] = "arithmetic_mean_DE"
+protein_matched["sgcb_fit_version"] = pd.Series(CONFIG["mean_fit_version"], index=protein_matched.index).where(protein_matched.method.eq("SGCB"))
+protein_matched["sgcb_used_endpoint"] = pd.Series("arithmetic_mean_DE", index=protein_matched.index).where(protein_matched.method.eq("SGCB"))
+protein_matched["score_source"] = protein_matched.score_source.replace({"current arithmetic-mean public API":"SGCB arithmetic-mean inference", "unchanged archived matched-input fit":"Matched-input comparator fit"})
 protein_matched["F1"] = 2 * protein_matched.TP / (
     protein_matched.spike_proteins + protein_matched.TP + protein_matched.FP)
 proteins = protein_matched[["dataset", "method", "normalization", "features",
     "spike_proteins", "null_proteins", "TP", "FP", "power", "FDP", "F1",
-    "raw_null_rejection", "score_source", "fit_version", "used_endpoint"]].copy()
+    "raw_null_rejection", "score_source", "sgcb_fit_version", "sgcb_used_endpoint"]].copy()
 proteins.to_csv(R / "publication_proteomics_matched.csv", index=False, encoding="utf-8")
 
 nb = pd.concat([
@@ -184,14 +188,14 @@ ph = pd.concat([pd.read_csv(R / f"sgcb_{VERSION}_kirc_heldout_proportional_hazar
                 pd.read_csv(R / f"sgcb_{VERSION}_kirc_alternative_scores_PH.csv").rename(columns={"score":"signature"}).assign(cohort="TCGA held-out"),
                 pd.read_csv(R / f"sgcb_{VERSION}_kirc_external_alternative_scores_PH.csv").rename(columns={"score":"signature"}).assign(cohort="E-MTAB-1980")], ignore_index=True)
 study = pd.DataFrame({
-    "Dataset": ["GG / misspecification simulation","Existing NB simulations","GTEx liver null","GTEx brain: cerebellum / cortex","GTEx brain: hemisphere / cortex","GTEx brain: hippocampus / hypothalamus","SEQC reference RNA","TCGA-KIRC discovery","TCGA-KIRC held-out survival","E-MTAB-1980 survival","Kang pseudobulk","Protein spike-ins"],
+    "Dataset": ["GG / misspecification simulation","Negative-binomial simulations","GTEx liver null","GTEx brain: cerebellum / cortex","GTEx brain: hemisphere / cortex","GTEx brain: hippocampus / hypothalamus","SEQC reference RNA","TCGA-KIRC discovery","TCGA-KIRC held-out survival","E-MTAB-1980 survival","Kang pseudobulk","Protein spike-ins"],
     "Group sizes / units": ["50:50; 10:10; 10:50","3:3, 5:5, 10:10","50:50 per partition","50:50; 93 donors","50:50; 92 donors","50:50; 84 donors","5:5 technical preparations","59 normals; 80 tumors; 139 patients","392 patients; 131 deaths","101 patients; 23 deaths","8 paired donors; 16 profiles","3:3 per contrast"],
     "Features / contrasts": ["5,400; nine scenarios","10,000; six contrasts","49,061–50,443 common genes; ten partitions","52,454 common genes","52,306 common genes","52,094 common genes","18,615 SGCB-tested; 683 qPCR-common","20,031 genes","385 clinically complete","99 clinically complete","10,385 genes","Four contrasts; 704–4,508 complete proteins"]})
 study.loc[2,"Group sizes / units"] = (
     f"{null_sample_sizes.n_A.min():d}–{null_sample_sizes.n_A.max():d} / "
     f"{null_sample_sizes.n_B.min():d}–{null_sample_sizes.n_B.max():d} independent donors")
 study.loc[2,"Features / contrasts"] = (
-    f"{null.n_common_genes.min():,}–{null.n_common_genes.max():,} common genes; ten original partitions")
+    f"{null.n_common_genes.min():,}–{null.n_common_genes.max():,} common genes; ten liver partitions")
 study = pd.concat([study,pd.DataFrame({
     "Dataset":["Observed-zero calibration","SLE classical monocytes (2021)","Metabolic liver disease (2023)"],
     "Group sizes / units":["50:50; 10:10; 10:50","24 controls; 64 patients; first visits","69 controls; 299 patients"],
@@ -235,94 +239,94 @@ table4_lines = table4.to_csv(sep="|",index=False).splitlines()
 table4_markdown = "\n".join(table4_lines[:1]+["|".join(["---"]*len(table4.columns))]+table4_lines[1:])
 table_text = "## Tables\n\n### Table 1. Evaluation datasets and biological units\n\n" + study_markdown
 table_text += "\n\n### Table 2. External TaqMan evaluation on 683 common genes\n\n" + table2_markdown
-table_text += "\n\nThe primary qPCR effect threshold is |log2(B/A)| ≥ 1 using the original geometric-mean reference. The matched arithmetic-mean sensitivity uses the same genes and thresholds in Table S5. AP denotes average precision. AUC intervals are approximate DeLong intervals; all F1 intervals and alternative thresholds are in Table S5. Adjusted p-values retain each method's full tested family.\n\n### Table 3. Discoveries in the ten fixed GTEx liver null partitions\n\n" + table3_markdown
-table_text += "\n\nAll ten original partitions use integer read counts reconstructed at 40 million reads, removal of every repeated-donor record, and the shared expression filter and TMM normalization. The sample sizes and exact common gene families appear in Table S2. Methods retain their stated abundance-CV2 or log-spread targets. Counts report observed false discoveries and the fraction of partitions with any call; overlapping partitions are described without treating them as independent Bernoulli trials. Matched retained outputs cover all ten partitions for DESeq2, edgeR, limma, DiffVar, GAMLSS and Brown–Forsythe, and partition 1 for MDSeq. The corrected-input clrDV result is unavailable; Table S2 lists comparator coverage by partition.\n"
+table_text += "\n\nThe primary qPCR effect threshold is |log2(B/A)| ≥ 1 using the geometric-mean reference. The matched arithmetic-mean sensitivity uses the same genes and thresholds in Table S5. AP denotes average precision. AUC intervals are approximate DeLong intervals; all F1 intervals and alternative thresholds are in Table S5. Adjusted p-values retain each method's full tested family.\n\n### Table 3. Discoveries in the ten fixed GTEx liver null partitions\n\n" + table3_markdown
+table_text += "\n\nAll ten liver partitions use integer read counts reconstructed at 40 million reads, removal of every repeated-donor record, and the shared expression filter and TMM normalization. The sample sizes and exact common gene families appear in Table S2. Methods retain their stated abundance-CV2 or log-spread targets. Counts report observed false discoveries and the fraction of partitions with any call; overlapping partitions are described without treating them as independent Bernoulli trials. Matched retained outputs cover all ten partitions for DESeq2, edgeR, limma, DiffVar, GAMLSS and Brown–Forsythe, and partition 1 for MDSeq. The clrDV result is unavailable for these inputs; Table S2 lists comparator coverage by partition.\n"
 table_text += "\n\n### Table 4. Independent disease applications and covariate sensitivity\n\n" + table4_markdown
 table_text += ("\n\nDV-only excludes SGCB DE in the same complete gene family. Adjusted DV-only counts same-direction significant conditional-moment CV2 contrasts among that set, after age and sex for SLE or clinical severity and composition proxies for liver. Conventional mean comparisons are available for liver only: "
     + str(int(new_biology.set_index("dataset").loc["masld_liver_2023","any_mean_negative"]))
     + " DV genes lack SGCB and conventional mean evidence, with "
     + str(int(new_biology.set_index("dataset").loc["masld_liver_2023","any_mean_negative_retained"]))
-    + " retaining same-direction full-adjusted evidence. SLE mean comparisons are SGCB-only. Table S24 provides all tested genes, available covariates, samples and unavailable comparisons. Each profile represents one individual.\n")
+    + " retaining same-direction full-adjusted evidence. SLE mean comparisons are SGCB-only. Tables S24 and S26 provide gene-level results, covariate designs, sample metadata and unavailable comparisons. Each profile represents one individual.\n")
 (OUT / "tables.md").write_text(table_text, encoding="utf-8")
 with pd.ExcelWriter(OUT / "Supplementary_Tables.xlsx", engine="openpyxl") as writer:
-    study.to_excel(writer, sheet_name="S1_Study_design", index=False)
-    null.to_excel(writer, sheet_name="S2_Null_partitions", index=False)
-    null_summary.to_excel(writer, sheet_name="S2_Null_aggregate", index=False)
-    null_availability.to_excel(writer,sheet_name="S2_Method_availability",index=False)
-    sim.to_excel(writer, sheet_name="S3_Simulation", index=False)
-    sim_scenario.to_excel(writer, sheet_name="S3_Scenario", index=False)
-    pd.read_csv(R / "publication_CV2_comparison.csv").to_excel(writer, sheet_name="S3_Same_CV2_tests", index=False)
-    pd.read_csv(R / "current_CV2_estimation.csv").to_excel(writer, sheet_name="S4_Moment_estimation", index=False)
-    qpcr.to_excel(writer, sheet_name="S5_qPCR", index=False)
-    current_api_metrics.to_excel(writer, sheet_name="S27_Current_API", index=False)
-    current_api_scenarios.to_excel(writer, sheet_name="S27_Current_scenarios", index=False)
-    brain.to_excel(writer, sheet_name="S6_Archived_brain", index=False)
-    cv_adjustment.to_excel(writer, sheet_name="S7_Conditional_CV2", index=False)
-    cv_by_channel.to_excel(writer, sheet_name="S7_KIRC_CV2_by_channel", index=False)
-    proteins.to_excel(writer, sheet_name="S8_Proteomics", index=False)
-    proteins_legacy.to_excel(writer, sheet_name="S8_Original_preprocessing", index=False)
-    nb.to_excel(writer, sheet_name="S9_NB_simulations", index=False)
+    study.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S1_Study_design", index=False)
+    null.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S2_Null_partitions", index=False)
+    null_summary.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S2_Null_aggregate", index=False)
+    null_availability.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer,sheet_name="S2_Method_availability",index=False)
+    sim.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S3_Simulation", index=False)
+    sim_scenario.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S3_Scenario", index=False)
+    pd.read_csv(R / "publication_CV2_comparison.csv").drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S3_Same_CV2_tests", index=False)
+    pd.read_csv(R / "current_CV2_estimation.csv").drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S4_Moment_estimation", index=False)
+    qpcr.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S5_qPCR", index=False)
+    current_api_metrics.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S27_Endpoint_metrics", index=False)
+    current_api_scenarios.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S27_Scenario_metrics", index=False)
+    brain.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S6_Gene_wise_brain", index=False)
+    cv_adjustment.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S7_Conditional_CV2", index=False)
+    cv_by_channel.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S7_KIRC_CV2_by_channel", index=False)
+    proteins.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S8_Proteomics", index=False)
+    proteins_legacy.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S8_Preprocess_sensitivity", index=False)
+    nb.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S9_NB_simulations", index=False)
     pd.read_csv(R / f"sgcb_{CONFIG['mean_fit_version']}_pseudobulk_kang18_paired_summary.csv").assign(
-        fit_version=CONFIG["mean_fit_version"],used_endpoint="arithmetic_mean_DE").to_excel(writer, sheet_name="S10_Pseudobulk", index=False)
-    survival.to_excel(writer, sheet_name="S11_Survival", index=False)
-    alternative.to_excel(writer, sheet_name="S11_Score_sensitivity", index=False)
-    distribution_scores.to_excel(writer, sheet_name="S11_Distribution_scores", index=False)
-    pd.read_csv(R / f"sgcb_{VERSION}_kirc_variability_discovery_score_parameters.csv").to_excel(
+        fit_version=CONFIG["mean_fit_version"],used_endpoint="arithmetic_mean_DE").drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S10_Pseudobulk", index=False)
+    survival.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S11_Survival", index=False)
+    alternative.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S11_Score_sensitivity", index=False)
+    distribution_scores.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S11_Distribution_scores", index=False)
+    pd.read_csv(R / f"sgcb_{VERSION}_kirc_variability_discovery_score_parameters.csv").drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(
         writer, sheet_name="S11_Distribution_parameters", index=False)
-    ph.to_excel(writer, sheet_name="S12_PH_diagnostics", index=False)
-    pd.read_csv(R / f"sgcb_{VERSION}_kirc_external_coverage.csv").to_excel(writer, sheet_name="S13_External_coverage", index=False)
-    pd.read_csv(R/"publication_current_resources.csv").to_excel(writer,sheet_name="S14_Current_full_API",index=False)
-    pd.read_csv(R / f"sgcb_{VERSION}_kirc_summary.csv").to_excel(writer, sheet_name="S15_KIRC_channels", index=False)
-    pd.read_csv(R / "current_kirc_summary.csv").drop(columns=["run_id", "fit_started", "native_source_id", "input_id"]).to_excel(writer, sheet_name="S15_Gene_wise_KIRC", index=False)
-    pd.read_csv(R / "current_zero_fraction_fit_summary.csv",keep_default_na=False).to_excel(writer, sheet_name="S16_Zero_fit", index=False)
-    pd.read_csv(R / "zero_shape_factorial_summary.csv",keep_default_na=False).to_excel(writer, sheet_name="S16_Zero_prior_factorial", index=False)
-    pd.read_csv(R / "publication_DV_comparators.csv").to_excel(writer, sheet_name="S17_DV_comparators", index=False)
-    covariance_diagnosis.assign(analysis_role="historical gene-wise covariance diagnostic").to_excel(
+    ph.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S12_PH_diagnostics", index=False)
+    pd.read_csv(R / f"sgcb_{VERSION}_kirc_external_coverage.csv").drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S13_External_coverage", index=False)
+    pd.read_csv(R/"publication_current_resources.csv").drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer,sheet_name="S14_Complete_API",index=False)
+    pd.read_csv(R / f"sgcb_{VERSION}_kirc_summary.csv").drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S15_KIRC_channels", index=False)
+    pd.read_csv(R / "current_kirc_summary.csv").drop(columns=["run_id", "fit_started", "native_source_id", "input_id"]).drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S15_Gene_wise_KIRC", index=False)
+    pd.read_csv(R / "current_zero_fraction_fit_summary.csv",keep_default_na=False).drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S16_Zero_fit", index=False)
+    pd.read_csv(R / "zero_shape_factorial_summary.csv",keep_default_na=False).drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S16_Zero_prior_factorial", index=False)
+    pd.read_csv(R / "publication_DV_comparators.csv").drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S17_DV_comparators", index=False)
+    covariance_diagnosis.assign(analysis_role="gene-wise covariance diagnostic").drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(
         writer, sheet_name="S18_Covariance", index=False)
-    pd.read_csv(R / "current_simulation_by_abundance.csv").to_excel(writer, sheet_name="S3_Abundance", index=False)
-    pd.read_csv(R / "CV2_estimator_comparison.csv").to_excel(writer, sheet_name="S4_CV2_estimators", index=False)
-    pd.read_csv(R / f"sgcb_{VERSION}_kirc_distribution_stability_summary.csv").to_excel(writer, sheet_name="S15_Distribution_stability", index=False)
-    pd.read_csv(R / f"sgcb_{VERSION}_kirc_stability_coverage.csv").to_excel(writer, sheet_name="S15_Mapping", index=False)
-    pd.read_csv(R / f"sgcb_{VERSION}_kirc_example_features.csv").to_excel(writer, sheet_name="S15_Examples", index=False)
-    pd.read_csv(R / f"sgcb_{VERSION}_kirc_enrichment_summary.csv").to_excel(writer, sheet_name="S21_Enrichment_summary", index=False)
-    pd.read_csv(R / f"sgcb_{VERSION}_kirc_enrichment_mapping.csv").to_excel(writer, sheet_name="S21_Annotation_mapping", index=False)
-    pd.read_csv(R / f"sgcb_{VERSION}_kirc_enrichment.csv").to_excel(writer, sheet_name="S21_All_tested_terms", index=False)
-    pd.read_csv(R / "publication_zero_calibration.csv").to_excel(writer, sheet_name="S22_Zero_calibration", index=False)
-    pd.read_csv(R / "publication_zero_calibration_scenarios.csv").to_excel(writer, sheet_name="S22_Zero_scenarios", index=False)
-    pd.read_csv(R / "zero_calibration_parameters.csv").to_excel(writer, sheet_name="S22_Parameters", index=False)
-    pd.read_csv(R / "zero_calibration_truth.csv").to_excel(writer, sheet_name="S22_Truth", index=False)
-    new_biology.to_excel(writer,sheet_name="S24_New_cohorts",index=False)
-    new_covariates.to_excel(writer,sheet_name="S24_Covariate_models",index=False)
+    pd.read_csv(R / "current_simulation_by_abundance.csv").drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S3_Abundance", index=False)
+    pd.read_csv(R / "CV2_estimator_comparison.csv").drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S4_CV2_estimators", index=False)
+    pd.read_csv(R / f"sgcb_{VERSION}_kirc_distribution_stability_summary.csv").drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S15_Distribution_stability", index=False)
+    pd.read_csv(R / f"sgcb_{VERSION}_kirc_stability_coverage.csv").drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S15_Mapping", index=False)
+    pd.read_csv(R / f"sgcb_{VERSION}_kirc_example_features.csv").drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S15_Examples", index=False)
+    pd.read_csv(R / f"sgcb_{VERSION}_kirc_enrichment_summary.csv").drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S21_Enrichment_summary", index=False)
+    pd.read_csv(R / f"sgcb_{VERSION}_kirc_enrichment_mapping.csv").drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S21_Annotation_mapping", index=False)
+    pd.read_csv(R / f"sgcb_{VERSION}_kirc_enrichment.csv").drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S21_All_tested_terms", index=False)
+    pd.read_csv(R / "publication_zero_calibration.csv").drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S22_Zero_calibration", index=False)
+    pd.read_csv(R / "publication_zero_calibration_scenarios.csv").drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S22_Zero_scenarios", index=False)
+    pd.read_csv(R / "zero_calibration_parameters.csv").drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S22_Parameters", index=False)
+    pd.read_csv(R / "zero_calibration_truth.csv").drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S22_Truth", index=False)
+    new_biology.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer,sheet_name="S24_Disease_cohorts",index=False)
+    new_covariates.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer,sheet_name="S24_Covariate_models",index=False)
     pd.concat([
         pd.read_csv(ROOT/"data/new_biology/sle_classical_monocytes_2021/samples.csv").assign(dataset=COHORTS[0]),
         pd.read_csv(R/"current_masld_liver_2023_covariate_samples.csv").assign(dataset=COHORTS[1])],
-        ignore_index=True).to_excel(writer,sheet_name="S24_Samples",index=False)
+        ignore_index=True).drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer,sheet_name="S24_Samples",index=False)
     pd.read_csv(R/"current_masld_liver_2023_composition_markers.csv").assign(
-        dataset=COHORTS[1]).to_excel(writer,sheet_name="S24_Markers",index=False)
+        dataset=COHORTS[1]).drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer,sheet_name="S24_Markers",index=False)
     pd.concat(map(pd.read_csv,bio_prefix+"_example_summary.csv"),keys=COHORTS,
-        names=["source_dataset","record"]).reset_index().to_excel(
+        names=["source_dataset","record"]).reset_index().drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(
             writer,sheet_name="S24_Examples",index=False)
     pd.concat(map(pd.read_csv,bio_prefix+"_example_effects.csv"),keys=COHORTS,
-        names=["source_dataset","record"]).reset_index().to_excel(
+        names=["source_dataset","record"]).reset_index().drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(
             writer,sheet_name="S24_Example_effects",index=False)
     pd.concat(map(pd.read_csv,bio_prefix+"_example_empirical.csv"),keys=COHORTS,
-        names=["source_dataset","record"]).reset_index().to_excel(
+        names=["source_dataset","record"]).reset_index().drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(
             writer,sheet_name="S24_Example_moments",index=False)
     pd.concat(map(pd.read_csv,bio_prefix+"_enrichment_summary.csv"),keys=COHORTS,
-        names=["source_dataset","record"]).reset_index().to_excel(
+        names=["source_dataset","record"]).reset_index().drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(
             writer,sheet_name="S25_Enrichment_summary",index=False)
     pd.concat(map(pd.read_csv,bio_prefix+"_enrichment_mapping.csv"),keys=COHORTS,
-        names=["source_dataset","record"]).reset_index().to_excel(
+        names=["source_dataset","record"]).reset_index().drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(
             writer,sheet_name="S25_Annotation_mapping",index=False)
-    new_enrichment.to_excel(writer,sheet_name="S25_All_tested_terms",index=False)
-    population_calibration.to_excel(writer, sheet_name="S26_Population_calibration", index=False)
-    population_scenarios.to_excel(writer, sheet_name="S26_Population_scenarios", index=False)
-    population_family_summary.to_excel(writer, sheet_name="S26_Kernel_families", index=False)
-    population_family_scenarios.to_excel(writer, sheet_name="S26_Kernel_scenarios", index=False)
-    population_family_operating.to_excel(writer, sheet_name="S26_Kernel_rank_curves", index=False)
-    population_biology.to_excel(writer, sheet_name="S26_Population_biology", index=False)
-    population_covariates.to_excel(writer, sheet_name="S26_Population_covariates", index=False)
-    population_biology_genes.to_excel(writer, sheet_name="S26_Population_genes", index=False)
+    new_enrichment.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer,sheet_name="S25_All_tested_terms",index=False)
+    population_calibration.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S26_Population_calibration", index=False)
+    population_scenarios.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S26_Population_scenarios", index=False)
+    population_family_summary.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S26_Kernel_families", index=False)
+    population_family_scenarios.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S26_Kernel_scenarios", index=False)
+    population_family_operating.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S26_Kernel_rank_curves", index=False)
+    population_biology.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S26_Population_biology", index=False)
+    population_covariates.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S26_Population_covariates", index=False)
+    population_biology_genes.drop(columns=CONFIG["publication_metadata_columns"], errors="ignore").replace(CONFIG["publication_label_replacements"], regex=True).to_excel(writer, sheet_name="S26_Population_genes", index=False)
 print(null_summary.to_string(index=False))
 print(table2.to_string(index=False))
 print(table4.to_string(index=False))

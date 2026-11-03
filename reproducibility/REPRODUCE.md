@@ -4,7 +4,7 @@
 
 基准和案例计算使用 16 线程、单个拟合进程。完整 API 时间与进程峰值分别记录在对应的 summary.csv 和 process_runtime.csv 中。
 
-RDS 保留原始构建标识和拟合来源，CSV 记录发布版本。各端点采用的实现与输入见下文。
+原始 CSV/RDS 保留拟合时的包标签、原生构建标识和输入标识；fit_package_version 是保存拟合时记录的包标签，release_version 是分发版本。原生构建标识用于追溯保存该拟合的构建记录。投稿工作簿呈现统计方法、设计、效应、区间及完整可用性，详细构建记录保留在对应 CSV/RDS 中。各端点采用的实现与输入见下文。
 
 软件安装包与完整复现资料均由 [GitHub v0.5.9 发行页](https://github.com/aeqby770/SGCB/releases/tag/v0.5.9)提供。[完整复现归档](https://github.com/aeqby770/SGCB/releases/download/v0.5.9/SGCB_0.5.9_reproducibility.zip)包含代码、固定输入、原生竞品结果及论文结果。日常使用只需安装 R 包。
 
@@ -43,7 +43,7 @@ source(system.file("examples", "minimal_workflow.R", package="SGCB"))
 
 ## 在独立Windows环境中复算
 
-先把前面设置段的 `$sgcbRoot` 改为复现包解压后的根目录。软件包的安装依赖按公开 README 准备；复算入口还使用 `ps`，可在同一 R 库中运行 `install.packages("ps", repos="https://cloud.r-project.org")` 安装。病例和注释分析使用对应脚本列出的 Bioconductor 包。
+先按本机位置设置前面示例中的 `$sgcbRoot`、`$sgcbR` 和 `$sgcbRcmd`，分别指向复现包根目录和 R 的实际可执行文件。软件包的安装依赖按公开 README 准备；复算入口还使用 `ps`，可在同一 R 库中运行 `install.packages("ps", repos="https://cloud.r-project.org")` 安装。病例和注释分析使用对应脚本列出的 Bioconductor 包。
 
 数值结果和原生竞品输出已经随包提供，可先直接检查。若需重新生成图和结果表，在Python 3.12中创建根目录下的 `.venv`，安装以下依赖。这里列出服务器已有版本；未列版本号的包按该名称安装。
 
@@ -95,7 +95,7 @@ py -3.12 -m venv (Join-Path $sgcbRoot '.venv')
 
 ## 沿用的均值验证
 
-均值代码和输入保持不变，SEQC、四个蛋白 spike-in、六个既有 NB 矩阵、Kang 及其配对敏感性使用保存的 0.5.7 均值结果。制表时明确记录 fit_version 和 used_endpoint；这些记录支持均值端点。当前完整 API 资源图使用六组基准、十个空拆分和三个案例的 19 次调用。原始输入、原生竞品与历史诊断保留其实际名称与版本。
+均值代码和输入保持不变，SEQC、四个蛋白 spike-in、六个既有 NB 矩阵、Kang 及其配对敏感性使用保存的 0.5.7 均值结果。qPCR 与蛋白比较中的 SGCB 专属来源字段使用 sgcb_fit_version、sgcb_used_endpoint 和适用的 sgcb_reuse_reason，仅填写 method=SGCB 的记录；竞品保留其原生分数来源和输入说明。原始保存结果及其版本记录保持在 CSV/RDS 中。当前完整 API 资源图使用六组基准、十个空拆分和三个案例的 19 次调用。原始输入、原生竞品与历史诊断保留其实际名称与版本。
 
 ## 生成图与结果表
 
