@@ -39,13 +39,13 @@ packageVersion("SGCB")  # 0.5.9
 source(system.file("examples", "minimal_workflow.R", package="SGCB"))
 ~~~
 
-源码安装使用 `remotes::install_github("aeqby770/SGCB", ref="main", dependencies=NA, upgrade="never", build_vignettes=FALSE)`，或下载发行版的 `SGCB_0.5.9.tar.gz` 后运行 `install.packages(..., repos=NULL, type="source")`；源码编译需要C++17工具链，Windows使用匹配R版本的Rtools。公开Windows安装包已通过全新临时库安装和包内120基因示例。软件包README说明当前/旧接口的区别。已有正式结果可直接用于图表和文档生成。
+源码安装使用 `remotes::install_github("aeqby770/SGCB", ref="main", dependencies=NA, upgrade="never", build_vignettes=FALSE)`，或下载发行版的 `SGCB_0.5.9.tar.gz` 后运行 `install.packages(..., repos=NULL, type="source")`；源码编译需要C++17工具链，Windows使用匹配R版本的Rtools。公开Windows安装包已通过全新临时库安装和包内120基因示例。软件包README说明当前/旧接口的区别。已有正式结果可直接用于生成图与结果表。
 
 ## 在独立Windows环境中复算
 
 先把前面设置段的 `$sgcbRoot` 改为复现包解压后的根目录。软件包的安装依赖按公开 README 准备；复算入口还使用 `ps`，可在同一 R 库中运行 `install.packages("ps", repos="https://cloud.r-project.org")` 安装。病例和注释分析使用对应脚本列出的 Bioconductor 包。
 
-数值结果和原生竞品输出已经随包提供，可先直接检查。若需重新生成图、表和文档，在Python 3.12中创建根目录下的 `.venv`，安装以下依赖。这里列出服务器已有版本；未列版本号的包按该名称安装。
+数值结果和原生竞品输出已经随包提供，可先直接检查。若需重新生成图和结果表，在Python 3.12中创建根目录下的 `.venv`，安装以下依赖。这里列出服务器已有版本；未列版本号的包按该名称安装。
 
 ~~~powershell
 py -3.12 -m venv (Join-Path $sgcbRoot '.venv')
