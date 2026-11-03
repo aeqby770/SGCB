@@ -10,7 +10,7 @@
 
 ## 设置与安装
 
-在服务器 PowerShell 中设置当前会话。中文路径直接作为独立参数传入：
+在 PowerShell 中将下列路径改为本机复现包根目录和 R 可执行文件位置。复现依赖与 SGCB 统一安装到 `library_factor`；`R_LIBS_USER` 将该库传给本会话启动的 Rcmd 和 Rscript。中文路径直接作为独立参数传入：
 
 ~~~powershell
 $sgcbRoot = 'E:\科研项目\SGCB'
@@ -22,28 +22,27 @@ $env:SGCB_REVISION_ROOT = $sgcbRoot
 $env:SGCB_DATA_ROOT = $sgcbRoot
 $env:SGCB_LIBRARY = Join-Path $sgcbRoot 'library_factor'
 [IO.Directory]::CreateDirectory($env:SGCB_LIBRARY) | Out-Null
+$env:R_LIBS_USER = $env:SGCB_LIBRARY
 $env:SGCB_THREADS = '16'
 $env:OMP_NUM_THREADS = '16'
 $env:OMP_STACKSIZE = '64M'
 Remove-Item Env:LANG,Env:LC_ALL,Env:LC_CTYPE,Env:SGCB_RNG_INPUT,Env:SGCB_RNG_OUTPUT,Env:SGCB_MEAN_PARENT_OUTPUT -ErrorAction SilentlyContinue
+& $sgcbR --encoding=UTF-8 -e "install.packages(c('Rcpp','RcppArmadillo','RcppEigen','matrixStats','data.table','mixsqp','ps','broom'), repos='https://cloud.r-project.org', lib=Sys.getenv('SGCB_LIBRARY'), type='binary')"
 & $sgcbRcmd INSTALL ('--library=' + $env:SGCB_LIBRARY) (Join-Path $sgcbRoot 'software\SGCB')
 ~~~
 
 公开安装入口为 [GitHub v0.5.9发行版](https://github.com/aeqby770/SGCB/releases/tag/v0.5.9)，[安装README](https://github.com/aeqby770/SGCB/blob/main/README.md)提供依赖、可写库目录和逐步操作。Windows R 4.5.x可直接从公开地址免编译安装：
 
-~~~r
-install.packages("https://github.com/aeqby770/SGCB/releases/download/v0.5.9/SGCB_0.5.9.zip",
-                 repos=NULL, type="win.binary")
-library(SGCB)
-packageVersion("SGCB")  # 0.5.9
-source(system.file("examples", "minimal_workflow.R", package="SGCB"))
+~~~powershell
+& $sgcbR --encoding=UTF-8 -e "install.packages('https://github.com/aeqby770/SGCB/releases/download/v0.5.9/SGCB_0.5.9.zip', repos=NULL, type='win.binary', lib=Sys.getenv('SGCB_LIBRARY'))"
+& $sgcbR --encoding=UTF-8 -e "library(SGCB); packageVersion('SGCB'); source(system.file('examples','minimal_workflow.R',package='SGCB'))"
 ~~~
 
 源码安装使用 `remotes::install_github("aeqby770/SGCB", ref="main", dependencies=NA, upgrade="never", build_vignettes=FALSE)`，或下载发行版的 `SGCB_0.5.9.tar.gz` 后运行 `install.packages(..., repos=NULL, type="source")`；源码编译需要C++17工具链，Windows使用匹配R版本的Rtools。公开Windows安装包已通过全新临时库安装和包内120基因示例。软件包README说明当前/旧接口的区别。已有正式结果可直接用于生成图与结果表。
 
 ## 在独立Windows环境中复算
 
-先按本机位置设置前面示例中的 `$sgcbRoot`、`$sgcbR` 和 `$sgcbRcmd`，分别指向复现包根目录和 R 的实际可执行文件。软件包的安装依赖按公开 README 准备；复算入口还使用 `ps`，可在同一 R 库中运行 `install.packages("ps", repos="https://cloud.r-project.org")` 安装。病例和注释分析使用对应脚本列出的 Bioconductor 包。
+先完成上面的环境设置和依赖安装，并在同一个 PowerShell 会话中运行下面的命令。`ps` 用于记录完整进程资源，`broom` 用于导出生存模型结果；两者已列入上述 CRAN 安装命令。病例和注释分析使用对应脚本列出的 Bioconductor 包，也应安装到 `SGCB_LIBRARY` 指定的库中。
 
 数值结果和原生竞品输出已经随包提供，可先直接检查。若需重新生成图和结果表，在Python 3.12中创建根目录下的 `.venv`，安装以下依赖。这里列出服务器已有版本；未列版本号的包按该名称安装。
 
