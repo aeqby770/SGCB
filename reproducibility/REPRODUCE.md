@@ -1,12 +1,12 @@
 # SGCB 0.5.9 复现说明
 
-服务器实体根为 E:\科研项目\SGCB。当前源代码在 software/SGCB，安装库为 library_factor/SGCB，分发包为 release/SGCB_0.5.9.tar.gz。主计算入口是 experiments/45_run_current_method.R，内部调用已安装的 SGCB::sgcbDE。结果写入 results，稿件与图形写入 manuscript，审稿回复写入 response。
+服务器实体根为 E:\科研项目\SGCB。当前源代码在 software/SGCB，安装库为 library_factor/SGCB，分发包为 release/SGCB_0.5.9.tar.gz。主计算入口是 experiments/45_run_current_method.R，内部调用已安装的 SGCB::sgcbDE。数值结果写入 results，图形写入 manuscript/figures。
 
 基准和案例计算使用 16 线程、单个拟合进程。完整 API 时间与进程峰值分别记录在对应的 summary.csv 和 process_runtime.csv 中。
 
 RDS 保留原始构建标识和拟合来源，CSV 记录发布版本。各端点采用的实现与输入见下文。
 
-软件安装包与完整复现资料均由 [GitHub v0.5.9 发行页](https://github.com/aeqby770/SGCB/releases/tag/v0.5.9)提供。[完整复现归档](https://github.com/aeqby770/SGCB/releases/download/v0.5.9/SGCB_CSBJ_revision_0.5.9_reproducibility.zip)包含代码、固定输入、原生竞品结果及论文结果。日常使用只需安装 R 包。
+软件安装包与完整复现资料均由 [GitHub v0.5.9 发行页](https://github.com/aeqby770/SGCB/releases/tag/v0.5.9)提供。[完整复现归档](https://github.com/aeqby770/SGCB/releases/download/v0.5.9/SGCB_0.5.9_reproducibility.zip)包含代码、固定输入、原生竞品结果及论文结果。日常使用只需安装 R 包。
 
 ## 设置与安装
 
@@ -49,10 +49,10 @@ source(system.file("examples", "minimal_workflow.R", package="SGCB"))
 
 ~~~powershell
 py -3.12 -m venv (Join-Path $sgcbRoot '.venv')
-& (Join-Path $sgcbRoot '.venv\Scripts\python.exe') -m pip install numpy==1.26.4 pandas==2.3.3 scipy==1.16.3 matplotlib==3.10.9 seaborn==0.13.2 statsmodels==0.14.6 scikit-learn==1.9.0 openpyxl==3.1.5 python-docx==1.2.0 pillow==12.2.0 pymupdf==1.28.0
+& (Join-Path $sgcbRoot '.venv\Scripts\python.exe') -m pip install numpy==1.26.4 pandas==2.3.3 scipy==1.16.3 matplotlib==3.10.9 seaborn==0.13.2 statsmodels==0.14.6 scikit-learn==1.9.0 openpyxl==3.1.5 pillow==12.2.0 pymupdf==1.28.0
 ~~~
 
-文档生成另外使用Pandoc与LibreOffice。这两种外部工具不随数据包分发。将它们放在 `.tools\pandoc.exe` 和 `.tools\LibreOffice\program\soffice.com`，或将31、70号脚本开头的工具路径指向本机已有安装。绘图用的Inter、Montserrat字体已随包提供；机制图的Segoe Print来自Windows字体目录。
+绘图用的 Inter、Montserrat 字体已随包提供；机制图的 Segoe Print 来自 Windows 字体目录。
 
 条件CV²敏感性的C++实现是 `development/57_cv_moment_regression.cpp`，可执行的协变量示例是 `experiments/sle_classical_monocytes_biology.R`。KIRC与肝脏的既有敏感性拟合及样本设计随包提供。
 
@@ -97,13 +97,9 @@ py -3.12 -m venv (Join-Path $sgcbRoot '.venv')
 
 均值代码和输入保持不变，SEQC、四个蛋白 spike-in、六个既有 NB 矩阵、Kang 及其配对敏感性使用保存的 0.5.7 均值结果。制表时明确记录 fit_version 和 used_endpoint；这些记录支持均值端点。当前完整 API 资源图使用六组基准、十个空拆分和三个案例的 19 次调用。原始输入、原生竞品与历史诊断保留其实际名称与版本。
 
-## 生成图表、工作簿和 Word/PDF
+## 生成图与结果表
 
-在上述会话中，使用服务器现有文档环境依次运行：
-
-绘图使用该环境已安装的 seaborn 0.13.2、statsmodels 0.14.6 和 Matplotlib。分布图由 boxenplot/violinplot/swarmplot 绘制，热图由 heatmap 绘制，类别面积图由 mosaic 绘制。仅刷新图文时，31 号脚本可加 `--documents-only`，复用已排版的工作簿。
-
-机制图由 30 号入口调用 `visualization/overview.py`。标题与短标签使用 Windows 字体目录中的 Segoe Print（`segoepr.ttf`、`segoeprb.ttf`）；数字和长技术标签使用 `visualization/_fonts` 中的 Inter，公式使用 STIX 数学字体。图中用可编辑矢量对象连接样本矩阵、零值分布、共享状态、均值/CV²分支及基因结果；背景、阴影及叠层用于表现对象层次，分布和状态权重为方法示意。数据图使用各自的绘图设置。单基因示例的两张 CSV 位于 `results`。
+在上述会话中，运行绘图与统计汇总入口。绘图读取已提供的结果，使用 seaborn、statsmodels 和 Matplotlib；输出矢量 PDF/SVG 及 300 dpi PNG。
 
 ~~~powershell
 $sgcbPython = Join-Path $sgcbRoot '.venv\Scripts\python.exe'
@@ -112,8 +108,6 @@ $env:MPLBACKEND = 'Agg'
 & $sgcbPython -X utf8 (Join-Path $sgcbRoot 'visualization\30_publication_figures.py') $sgcbRoot
 & $sgcbPython -X utf8 (Join-Path $sgcbRoot 'visualization\82_new_publication_figures.py') $sgcbRoot
 & $sgcbPython -X utf8 (Join-Path $sgcbRoot 'experiments\29_publication_tables.py') $sgcbRoot
-& $sgcbPython -X utf8 (Join-Path $sgcbRoot 'writing\31_build_documents.py') $sgcbRoot
-& $sgcbPython -X utf8 (Join-Path $sgcbRoot 'writing\70_prepare_revision_uploads.py') $sgcbRoot
 ~~~
 
-主要成品是 manuscript/CSBJ_SGCB_manuscript.docx/.pdf、CSBJ_SGCB_supplementary.docx/.pdf、Supplementary_Tables.xlsx、figures 下的矢量与 300 dpi 图，以及 response/Response_to_Editor_and_Reviewers.docx/.pdf。70 号写作脚本生成可编辑标记稿和本地 cover letter，同步当前 submission 目录，并在 release 中写出 SGCB_CSBJ_revision_0.5.9_submission.zip 与 SGCB_CSBJ_revision_0.5.9_reproducibility.zip。前者仅包含投稿成品；后者通过 GitHub 提供，包含当前入口、固定输入、有效父结果与完整输出。32_render_document_pages.py 将生成的 PDF 渲染到 tmp/documents/qa 供版式检查。文档转换复用 .tools 中的 Pandoc 和 LibreOffice。
+图形写入 manuscript/figures，统计汇总写入 results，工作簿为 manuscript/Supplementary_Tables.xlsx。公开归档包括软件、分析脚本、固定输入、原生竞品结果和数值输出。

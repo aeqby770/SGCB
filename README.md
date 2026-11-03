@@ -113,11 +113,11 @@ Count defaults are `normalization="tmm"`, `offset=0.5`, `min_count=10`, `min_sam
 
 DE state pairs, posterior summaries, numerical checks and component times are recorded in `mean_model`, `mean_posterior`, `mean_integration_checks` and `mean_timing`.
 
-The installed example uses deterministic input and writes `SGCB_minimal_results.csv`, showing effects, availability, intervals and channel membership. Population-model attributes are `population_model`, `population_posterior` and `population_timing`; gene-wise diagnostic details are in `fit_diagnostics`. The companion archive's `REPRODUCE.md` gives experiment, figure and document commands.
+The installed example uses deterministic input and writes `SGCB_minimal_results.csv`, showing effects, availability, intervals and channel membership. Population-model attributes are `population_model`, `population_posterior` and `population_timing`; gene-wise diagnostic details are in `fit_diagnostics`. The companion archive's `REPRODUCE.md` gives experiment and figure commands.
 
-## Reproduce the manuscript
+## Reproduce the analyses
 
-The [v0.5.9 release](https://github.com/aeqby770/SGCB/releases/tag/v0.5.9) also provides the [complete reproduction archive](https://github.com/aeqby770/SGCB/releases/download/v0.5.9/SGCB_CSBJ_revision_0.5.9_reproducibility.zip), containing the fixed inputs, analysis scripts, comparator outputs and reported results. Start with `REPRODUCE.md` after extraction. The repository's `reproducibility/` directory contains the current analysis, visualization and document-generation code separately from the R package.
+The [v0.5.9 release](https://github.com/aeqby770/SGCB/releases/tag/v0.5.9) also provides the [complete reproduction archive](https://github.com/aeqby770/SGCB/releases/download/v0.5.9/SGCB_0.5.9_reproducibility.zip), containing the fixed inputs, analysis scripts, comparator outputs and reported results. Start with `REPRODUCE.md` after extraction. The repository's `reproducibility/` directory contains analysis and visualization code separately from the R package.
 
 ## Historical submitted implementation
 

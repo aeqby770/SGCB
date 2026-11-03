@@ -907,7 +907,7 @@ ax.axvline(1, color=GREY, ls="--", lw=.8)
 ax.set(yticks=yy, yticklabels=["DE only", "DV only", "Both"], xlabel="Adjusted HR per score SD (95% CI)",
        xlim=(min(tcga["conf.low"].min(), ext["conf.low"].min()) * .9,
              max(tcga["conf.high"].max(), ext["conf.high"].max()) * 1.05),
-       ylim=(2.9, -.35), title="$\\mathbf{a}$  Current discovery gene sets")
+       ylim=(2.9, -.35), title="$\\mathbf{a}$  SGCB discovery gene sets")
 cohort_handles,cohort_labels=ax.get_legend_handles_labels()
 ax.grid(axis="x")
 ax = fig.add_subplot(grid[0, 1])
@@ -986,7 +986,7 @@ axes[0].legend(frameon=False, fontsize=7.5, loc="lower right")
 bars = axes[1].barh(np.arange(3), adjustment.selected_adjusted_fraction, height=.55, color=DV_COLOR,edgecolor="white",linewidth=CONFIG["detail"]["bar_edge_width"])
 axes[1].bar_label(bars, labels=(adjustment.selected_same_direction_significant.astype(int).astype(str)+
     " / "+adjustment.selected_available.astype(int).astype(str)).to_numpy(), padding=3, fontsize=7.4)
-axes[1].set(title="$\\mathbf{b}$  Current DV discoveries", yticks=np.arange(3), yticklabels=[],
+axes[1].set(title="$\\mathbf{b}$  SGCB DV discoveries", yticks=np.arange(3), yticklabels=[],
     xlabel="Same direction\nAdjusted q < 0.05", xlim=(0,1.25),xticks=[0,.5,1],ylim=(2.6,-.6))
 axes[2].scatter(adjustment.selected_sign_retained, np.arange(3), color=DV_COLOR, s=38,edgecolors="white",linewidths=.5)
 axes[2].axvline(1, color=GREY, ls=":", lw=.7)
@@ -1197,7 +1197,7 @@ axes[1,0].set(title="$\\mathbf{c}$  Equal-mean, equal-CV² shape change",xlabel=
     ylabel="False calls / 600 genes",xticks=np.arange(3),xticklabels=CONFIG["designs"],
     ylim=(-.5,max(1,shape_calls.max().max()*1.15)))
 axes[1,1].scatter(cost.position+cost.family_offset,cost.seconds,c=cost.color,s=28)
-axes[1,1].set(title="$\\mathbf{d}$  Current DV component cost",xlabel="Panel / sample design",
+axes[1,1].set(title="$\\mathbf{d}$  DV component wall time",xlabel="Panel / sample design",
     ylabel="DV fitting wall time (s)",xticks=np.arange(6),
     xticklabels=["Positive\n10:10","Positive\n10:50","Positive\n50:50","Zeros\n10:10","Zeros\n10:50","Zeros\n50:50"])
 axes[1,1].tick_params(axis="x",labelsize=7.2)

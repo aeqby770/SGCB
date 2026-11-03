@@ -16,3 +16,6 @@ src/*.dylib
 
 # Output directory
 sgcb_output/
+
+# Private manuscript-generation files
+writing/
