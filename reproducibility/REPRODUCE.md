@@ -38,7 +38,7 @@ Remove-Item Env:LANG,Env:LC_ALL,Env:LC_CTYPE,Env:SGCB_RNG_INPUT,Env:SGCB_RNG_OUT
 & $sgcbR --encoding=UTF-8 -e "library(SGCB); packageVersion('SGCB'); source(system.file('examples','minimal_workflow.R',package='SGCB'))"
 ~~~
 
-源码安装使用 `remotes::install_github("aeqby770/SGCB", ref="main", dependencies=NA, upgrade="never", build_vignettes=FALSE)`，或下载发行版的 `SGCB_0.5.9.tar.gz` 后运行 `install.packages(..., repos=NULL, type="source")`；源码编译需要C++17工具链，Windows使用匹配R版本的Rtools。公开Windows安装包已通过全新临时库安装和包内120基因示例。软件包README说明当前/旧接口的区别。已有正式结果可直接用于生成图与结果表。
+源码安装使用 `remotes::install_github("aeqby770/SGCB", ref="v0.5.9", dependencies=NA, upgrade="never", build_vignettes=FALSE)`，或下载发行版的 `SGCB_0.5.9.tar.gz` 后运行 `install.packages(..., repos=NULL, type="source")`；源码编译需要C++17工具链，Windows使用匹配R版本的Rtools。公开Windows安装包已通过全新临时库安装和包内120基因示例。软件包README说明当前/旧接口的区别。已有正式结果可直接用于生成图与结果表。
 
 ## 在独立Windows环境中复算
 

@@ -67,7 +67,7 @@ metrics <- genes[,.(features=.N,available=sum(available),finite_truth=sum(truth_
     RMSE=sqrt(mean(error[available & truth_finite]^2)),bias=mean(error[available & truth_finite]),
     median_se=median(se[available & truth_finite],na.rm=TRUE),
     interval_available=sum(interval_available & truth_finite),
-    coverage_all=sum(covered & truth_finite,na.rm=TRUE)/sum(truth_finite),
+    coverage_all=sum(covered & available & truth_finite,na.rm=TRUE)/sum(truth_finite),
     coverage_available=sum(covered & available & truth_finite,na.rm=TRUE)/
         sum(available & truth_finite),
     native_coverage_available=sum(native_covered & available & truth_finite,na.rm=TRUE)/
