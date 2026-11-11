@@ -15,7 +15,7 @@ key <- function(x) vapply(x,string,character(1))
 a <- key(b0); b <- key(b1)
 a <- a[!startsWith(a,"kernel_cache <- new.env")]
 b <- b[!startsWith(b,"kernel_cache <- new.env") & !startsWith(b,"endpoint <- match.arg(endpoint)") & !grepl('^if \\(endpoint == "(mean|variability)"\\)',b)]
-agree <- identical(a,b);stopifnot(agree,setequal(compare[identical_source==FALSE,file],c("R/differential.R","R/population.R")))
+agree <- identical(a,b);stopifnot(agree,setequal(compare[identical_source==FALSE,file],c("R/differential.R","R/population.R","src/population_gg.cpp")))
 get_text<-function(path)readLines(path,warn=FALSE,encoding="UTF-8")
 outside_score<-function(x){
     first<-which(trimws(x)=="posterior_null <- joint_fit$posterior_null")
@@ -23,8 +23,26 @@ outside_score<-function(x){
     stopifnot(length(first)==1L,length(last)==1L,first<last)
     x[-seq.int(first+2L,last-1L)]
 }
-stopifnot(identical(outside_score(get_text(file.path(old,"R/population.R"))),
-    outside_score(get_text(file.path(nw,"R/population.R")))))
+old_outside <- paste(outside_score(get_text(file.path(old,"R/population.R"))),collapse="\n")
+new_outside <- paste(outside_score(get_text(file.path(nw,"R/population.R"))),collapse="\n")
+scale_block <- paste(c(
+    "    log_scale <- .5*log(cbind(matrixStats::rowVars(positive_log[,group==0,drop=FALSE],na.rm=TRUE),",
+    "        matrixStats::rowVars(positive_log[,group==1,drop=FALSE],na.rm=TRUE)))"),collapse="\n")
+new_head <- paste(c(scale_block,
+    "    positive_usable <- positive_counts>=4L & is.finite(log_scale)",
+    "    control$preserve_nested <- any(x==0)",
+    "    # No two-group CV2 posterior is available without four variable positives per group.",
+    "    switch(as.character(any(rowSums(positive_usable)==2L)),"),collapse="\n")
+old_head <- paste(c("    control$preserve_nested <- any(x==0)",
+    "    # No two-group CV2 posterior is available without four positives per group.",
+    "    switch(as.character(any(rowSums(positive_counts>=4L)==2L)),"),collapse="\n")
+new_range <- "    scale_range <- range(log_scale[positive_usable],finite=TRUE)"
+old_range <- paste(scale_block,"    scale_range <- range(log_scale[positive_counts>=4],finite=TRUE)",sep="\n")
+stopifnot(sum(gregexpr(new_head,new_outside,fixed=TRUE)[[1]]>0L)==1L,
+    sum(gregexpr(new_range,new_outside,fixed=TRUE)[[1]]>0L)==1L)
+new_outside <- sub(new_head,old_head,new_outside,fixed=TRUE)
+new_outside <- sub(new_range,old_range,new_outside,fixed=TRUE)
+stopifnot(identical(old_outside,new_outside))
 fwrite(compare,file.path(root,"results","source_dependency_comparison.tsv"),sep="\t")
 v <- data.table(
     analysis=c("Fixed positive and observed-zero panels; Fig. 2 and 3","qPCR Fig. 4 and the six negative-binomial mean benchmarks, protein spike-ins and Kang mean",
@@ -48,5 +66,13 @@ v<-rbind(v,data.table(analysis=c("Zero-null scoring and global-shift counterexam
     disposition=c("fixed fitted effects and nuisance distribution; analytic boundary limit checked against installed public entry point",
         "new same-input count comparator; the method label remains edgeR","31 original fits checked against exact boundary eligibility"),
     source=c("results/boundary_operating_characteristics.tsv","results/known_exposure_ql_summary.tsv","results/archived_mean_boundary.tsv")))
+switch(as.character(file.exists(file.path(root,"results/eligibility_refit_comparison.tsv"))),"TRUE"={
+    v[analysis=="Repeated null, mixed and technical panels; Fig. S9",disposition:=
+        "R2 records retained except six original depth matrices refitted after constant-positive eligibility correction; original random streams and three threads reused"]
+    v[analysis=="Endpoint timing and package tests",disposition:=
+        "original R2 benchmark runtime on 5700X3D retained; 15 constant-input boundary assertions passed after correction; six refit runtimes on 5900HX retained separately"]
+    v[analysis=="Endpoint timing and package tests",source:=
+        "results/endpoint_runtime_equivalence.tsv; results/package_tests.tsv; software/SGCB/tests/testthat/test-eligibility.R; results/eligibility_refit_comparison.tsv"]
+})
 fwrite(v,file.path(root,"results","analysis_versions.tsv"),sep="\t")
 cat("Shared full-analysis expressions",agree,"; unchanged source files",sum(compare$identical_source),"of",nrow(compare),"\n")

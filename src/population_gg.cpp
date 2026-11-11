@@ -720,13 +720,17 @@ Rcpp::List joint_population_likelihood_cpp(Rcpp::NumericMatrix x,Rcpp::IntegerVe
     #endif
     for (int row=0;row<2*ng;++row) {
         const int gene=row%ng,g=row/ng;std::vector<double> y;
-        double center=0,ss=0;
-        for (int j=0;j<x.ncol();++j) if (group[j]==g && x(gene,j)>0) y.push_back(std::log(x(gene,j)));
+        double center=0,ss=0,positive_min=R_PosInf,positive_max=R_NegInf;
+        for (int j=0;j<x.ncol();++j) if (group[j]==g && x(gene,j)>0) {
+            y.push_back(std::log(x(gene,j)));
+            positive_min=std::min(positive_min,x(gene,j));
+            positive_max=std::max(positive_max,x(gene,j));
+        }
         std::sort(y.begin(),y.end());
         const int m=y.size();count[row]=m;
         for (double value:y) center+=value/m;
         for (double& value:y) {value-=center;ss+=value*value;}
-        usable[row]=m>=4 && ss>0;
+        usable[row]=m>=4 && positive_min<positive_max;
         if (!usable[row]) continue;
         for (int k=0;k<nk;++k) loglike(row,previous_columns+k)=
             constants[size_t(m)*nq+shape_index[k]]+population_scale_logdensity(y,log_sigma[k],shape[k]);
@@ -2333,8 +2337,12 @@ Rcpp::List population_mixture_likelihood_cpp(Rcpp::NumericMatrix x,Rcpp::Integer
         sparse=std::make_unique<SparsePopulationBuffer>();
         sparse_row.assign(2*ng,-1);sparse_count.assign(nk,0);
         for(int row=0;row<2*ng;++row) {
-            const int gene=row%ng,g=row/ng;int m=0;double center=0,ss=0;
-            for(int j=0;j<x.ncol();++j)if(group[j]==g && x(gene,j)>0)++m;
+            const int gene=row%ng,g=row/ng;int m=0;double center=0,ss=0,positive_min=R_PosInf,positive_max=R_NegInf;
+            for(int j=0;j<x.ncol();++j)if(group[j]==g && x(gene,j)>0) {
+                ++m;
+                positive_min=std::min(positive_min,x(gene,j));
+                positive_max=std::max(positive_max,x(gene,j));
+            }
             // Match the row's original summation order, including division
             // before addition when finding its log-location center.
             for(int j=0;j<x.ncol();++j)if(group[j]==g && x(gene,j)>0)
@@ -2342,7 +2350,7 @@ Rcpp::List population_mixture_likelihood_cpp(Rcpp::NumericMatrix x,Rcpp::Integer
             for(int j=0;j<x.ncol();++j)if(group[j]==g && x(gene,j)>0) {
                 const double residual=std::log(x(gene,j))-center;ss+=residual*residual;
             }
-            count[row]=m;usable[row]=m>=minimum_positive && (minimum_positive<4 || ss>0);
+            count[row]=m;usable[row]=m>=minimum_positive && (minimum_positive<4 || positive_min<positive_max);
             if(usable[row]) {sparse_row[row]=sparse->rows.size();sparse->rows.push_back(row);}
         }
         sparse->n=sparse->rows.size();sparse->nk=nk;
@@ -2404,12 +2412,16 @@ Rcpp::List population_mixture_likelihood_cpp(Rcpp::NumericMatrix x,Rcpp::Integer
     #endif
     for (int row=begin;row<end;++row) {
         const int output_row=sparse_output ? row-begin : row;
-        const int gene=row%ng,g=row/ng;std::vector<double> y;double center=0,ss=0;
-        for (int j=0;j<x.ncol();++j) if (group[j]==g && x(gene,j)>0) y.push_back(std::log(x(gene,j)));
+        const int gene=row%ng,g=row/ng;std::vector<double> y;double center=0,ss=0,positive_min=R_PosInf,positive_max=R_NegInf;
+        for (int j=0;j<x.ncol();++j) if (group[j]==g && x(gene,j)>0) {
+            y.push_back(std::log(x(gene,j)));
+            positive_min=std::min(positive_min,x(gene,j));
+            positive_max=std::max(positive_max,x(gene,j));
+        }
         const int m=y.size();count[row]=m;
         for (double value:y) center+=value/m;
         for (double value:y) ss+=(value-center)*(value-center);
-        usable[row]=m>=minimum_positive && (minimum_positive<4 || ss>0);
+        usable[row]=m>=minimum_positive && (minimum_positive<4 || positive_min<positive_max);
         if (!usable[row]) continue;
         if (m==1) {
             for (int k=0;k<nk;++k) loglike(output_row,k)=0;
@@ -2620,12 +2632,16 @@ Rcpp::List population_mixture_mean_likelihood_cpp(Rcpp::NumericMatrix x,Rcpp::In
     #pragma omp parallel for schedule(dynamic,1)
     #endif
     for (int row=0;row<2*ng;++row) {
-        const int gene=row%ng,g=row/ng;std::vector<double> y;double center=0,ss=0;
-        for (int j=0;j<x.ncol();++j) if (group[j]==g && x(gene,j)>0) y.push_back(std::log(x(gene,j)));
+        const int gene=row%ng,g=row/ng;std::vector<double> y;double center=0,ss=0,positive_min=R_PosInf,positive_max=R_NegInf;
+        for (int j=0;j<x.ncol();++j) if (group[j]==g && x(gene,j)>0) {
+            y.push_back(std::log(x(gene,j)));
+            positive_min=std::min(positive_min,x(gene,j));
+            positive_max=std::max(positive_max,x(gene,j));
+        }
         const int m=y.size();count[row]=m;usable[row]=m>=1;
         if (m==0) continue;
         for (double v:y) center+=v/m;for (double v:y) ss+=(v-center)*(v-center);
-        cv_usable[row]=m>=4 && ss>0;
+        cv_usable[row]=m>=4 && positive_min<positive_max;
         if (m==1) {
             for (int s=0;s<ns;++s) {
                 const double sigma=std::exp(log_sigma[s]),q=shape[s],e=epsilon[s],D=relative_shift[s]*sigma;

@@ -102,9 +102,12 @@ utils::globalVariables(c(".","Q","epsilon","left","log_sigma","moment_increment"
     positive_log[x==0] <- NA_real_
     positive_counts <- cbind(rowSums(x[,group==0,drop=FALSE]>0),
         rowSums(x[,group==1,drop=FALSE]>0))
+    log_scale <- .5*log(cbind(matrixStats::rowVars(positive_log[,group==0,drop=FALSE],na.rm=TRUE),
+        matrixStats::rowVars(positive_log[,group==1,drop=FALSE],na.rm=TRUE)))
+    positive_usable <- positive_counts>=4L & is.finite(log_scale)
     control$preserve_nested <- any(x==0)
-    # No two-group CV2 posterior is available without four positives per group.
-    switch(as.character(any(rowSums(positive_counts>=4L)==2L)),
+    # No two-group CV2 posterior is available without four variable positives per group.
+    switch(as.character(any(rowSums(positive_usable)==2L)),
         "FALSE"={
             missing <- rep(NA_real_,nrow(x))
             genes <- data.frame(effect=missing,se=missing,cdf_zero_lower=missing,
@@ -122,9 +125,7 @@ utils::globalVariables(c(".","Q","epsilon","left","log_sigma","moment_increment"
                 quadrature_error=rep(NA_real_,2L*nrow(x)),
                 convergence=data.frame(stage="no_usable_gene_pairs",kkt_gap=NA_real_)))
         })
-    log_scale <- .5*log(cbind(matrixStats::rowVars(positive_log[,group==0,drop=FALSE],na.rm=TRUE),
-        matrixStats::rowVars(positive_log[,group==1,drop=FALSE],na.rm=TRUE)))
-    scale_range <- range(log_scale[positive_counts>=4],finite=TRUE)
+    scale_range <- range(log_scale[positive_usable],finite=TRUE)
     scale_grid <- seq(floor((scale_range[1]-control$scale_margin)/control$scale_step)*control$scale_step,
         ceiling((scale_range[2]+control$scale_margin)/control$scale_step)*control$scale_step,
         by=control$scale_step)

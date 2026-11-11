@@ -4,9 +4,17 @@ out <- file.path(root,"results"); d <- readRDS(file.path(root,"experiments/desig
 files <- file.path(out,"final",sprintf("matrix_%03d.rds",d$jobs$id))
 stopifnot(all(file.exists(files)))
 replicates <- lapply(files,readRDS)
+eligibility_ids <- c(386L,387L,397L,402L,405L,407L)
+timing_reference_ids <- which(vapply(replicates,function(z)!is.null(z$timing_reference),logical(1)))
+stopifnot(length(timing_reference_ids)==0L || setequal(timing_reference_ids,eligibility_ids))
 ratio <- function(x,y) ifelse(y>0,x/y,NA_real_)
 mean_ok <- function(x) if(any(is.finite(x))) mean(x[is.finite(x)]) else NA_real_
 summarize_method <- function(run,method,z,endpoint,keep=rep(TRUE,nrow(z)),state="all",cutoff=.05) {
+    timing <- run$seconds
+    switch(as.character(run$job$id%in%timing_reference_ids),"TRUE"={
+        stopifnot(all(c("SGCB","moments")%in%names(run$timing_reference)))
+        timing <- run$timing_reference
+    })
     tr <- run$truth
     p <- z[[paste0(endpoint,"_p")]][keep]; q <- z[[paste0(endpoint,"_q")]][keep]
     e <- tr[[paste0(endpoint,"_effect")]][keep]
@@ -25,7 +33,7 @@ summarize_method <- function(run,method,z,endpoint,keep=rep(TRUE,nrow(z)),state=
         tp=true,fp=false,calls=sum(call),FDP=false/max(1,sum(call)),any_call=as.numeric(any(call)),
         power=ratio(true,sum(alt)),type1=ratio(sum(is.finite(p)&p<.05 & !alt),sum(!alt)),
         availability=mean(inf),covered_all=ci[1],coverage=ci[2],width=ci[3],interval_score=ci[4],
-        seconds=unname(run$seconds[if(method=="Moments") "moments" else "SGCB"]))
+        seconds=unname(timing[if(method=="Moments") "moments" else "SGCB"]))
 }
 assemble <- function(run) {
     z <- run$SGCB; m <- run$moments; check <- z

@@ -91,7 +91,7 @@ The installed example uses deterministic input and writes `SGCB_minimal_results.
 
 ## Reproduce the analyses
 
-The [v0.5.9 release](https://github.com/aeqby770/SGCB/releases/tag/v0.5.9) also provides the [complete reproduction archive](https://github.com/aeqby770/SGCB/releases/download/v0.5.9/SGCB_0.5.9_reproducibility.zip), containing the fixed inputs, analysis scripts, comparator outputs and reported results. Start with `REPRODUCE.md` after extraction. The repository's `reproducibility/` directory contains analysis and visualization code separately from the R package.
+The [0.6.0 reproduction archive](https://github.com/aeqby770/SGCB/releases/download/v0.6.0/SGCB_0.6.0_reproducibility.zip) contains the independent-study code and results. Six original unequal-depth matrices were refitted after the constant-positive eligibility correction, using the saved random streams. The [v0.5.9 archive](https://github.com/aeqby770/SGCB/releases/download/v0.5.9/SGCB_0.5.9_reproducibility.zip) preserves the reference inputs and retained R1 analyses. Start with `REPRODUCE.md` in the 0.6.0 archive; it identifies producing versions, original timing references and the eligibility-corrected records. The repository's `reproducibility/` directory contains analysis and visualization code separately from the R package.
 
 ## Historical submitted implementation
 
@@ -107,7 +107,7 @@ Use the SGCB 0.6.0 source or Windows package supplied here for this revision. Us
 
 ## Input requirements and evaluation
 
-Population DV requires at least four nonconstant positive observations per group and assumes finite second moments. This is an eligibility rule. Reliability also depends on sample size, positive support and the effect mechanism. In the fixed sparse reinforcing 10:10 scenario, 126/200 comparisons had intervals and 93/126 covered the truth (73.81% for nominal 95% intervals). Power was 0%, 39% and 86.5% at 10:10, 10:50 and 50:50. Separate independent mixed 10:10 matrices detected 2/11,520 true CV² changes. These results establish no universal adequate sample size. Plan replication using expected detection fractions in each group.
+Population DV requires at least four nonconstant positive observations per group and assumes finite second moments. This is an eligibility rule. Constant positive groups are unestimable. If no gene has estimable positive variation in both groups, the variability endpoint returns unavailable estimates for the retained genes. Reliability also depends on sample size, positive support and the effect mechanism. In the fixed sparse reinforcing 10:10 scenario, 126/200 comparisons had intervals and 93/126 covered the truth (73.81% for nominal 95% intervals). Power was 0%, 39% and 86.5% at 10:10, 10:50 and 50:50. Separate independent mixed 10:10 matrices detected 2/11,520 true CV² changes. These results establish no universal adequate sample size. Plan replication using expected detection fractions in each group.
 
 For each gene, report both group sizes, positive counts, `dv_inference_available`, `dv_log2_cv2_ratio`, `dv_ci_lower`, `dv_ci_upper` and `dv_padj`. Single-endpoint output omits positive counts; obtain them from the corresponding input columns. Unavailable comparisons are unestimable. A nonsignificant result with sparse positives or limited power leaves variability changes unresolved. Interpret available intervals conditionally on the learned catalogue and local approximation, with the observed sparse-scenario undercoverage in mind. Tables S29–S30 provide mechanism-specific availability and coverage.
 

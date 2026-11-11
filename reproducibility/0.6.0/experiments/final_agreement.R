@@ -12,7 +12,8 @@ per<-rbindlist(lapply(ids,function(id){
         missing_changed=!identical(is.finite(w$mean_p),is.finite(z$mean_p)),
         old_calls=sum(w$mean_q<.05),new_calls=sum(z$mean_q<.05),eligible=sum(finite))
 }))
-stopifnot(!any(per$variability_changed),!any(per$missing_changed),
+eligibility_ids<-c(386L,387L,397L,402L,405L,407L)
+stopifnot(setequal(per[variability_changed==TRUE,id],eligibility_ids),!any(per$missing_changed),
     all(per[regime=="fitted_posterior_null_mass",mean_scores_changed]==0L))
 fwrite(per,file.path(out,"final_vs_original_scoring_matrices.tsv"),sep="\t")
 fixed<-list.files(file.path(out,"protected"),pattern="_final_t16\\.rds$",full.names=TRUE);stopifnot(length(fixed)==6L)
