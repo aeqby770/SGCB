@@ -1,89 +1,63 @@
 # SGCB
 
-Version 0.5.9 analyzes unconditional arithmetic means and relative variability in two independent groups.
+SGCB estimates unconditional arithmetic-mean and relative-variability contrasts between two independent groups. Both endpoints include observed zeros.
 
-The current method is available through `sgcbDE()`. [Release v0.5.9](https://github.com/aeqby770/SGCB/releases/tag/v0.5.9) provides the source archive and the Windows R 4.5.x binary. The originally submitted implementation is retained under the historical GitHub tag v0.4.1.
+## Installation
 
-## Install version 0.5.9
-
-Start a fresh R session. Set up a writable project library and install the dependencies. Windows uses CRAN binaries for these dependencies:
+Start a fresh R session in the extracted 0.6.0 reproduction directory. Create a writable library and install dependencies:
 
 ```r
 sgcb_library <- file.path(getwd(), "library")
-dir.create(sgcb_library, showWarnings = FALSE)
+dir.create(sgcb_library, showWarnings=FALSE)
 .libPaths(c(sgcb_library, .libPaths()))
-
-install.packages(c("Rcpp", "RcppArmadillo", "RcppEigen", "matrixStats",
-                   "data.table", "mixsqp"),
-                 repos = "https://cloud.r-project.org", lib = sgcb_library,
-                 type = ifelse(.Platform$OS.type == "windows", "binary",
-                               getOption("pkgType")))
+install.packages(c("Rcpp", "RcppArmadillo", "RcppEigen", "data.table",
+                   "matrixStats", "mixsqp"),
+                 repos="https://cloud.r-project.org", lib=sgcb_library)
 ```
 
-Choose one of the following archive installations.
-
-**Windows R 4.5.x, precompiled package.** [SGCB_0.5.9.zip](https://github.com/aeqby770/SGCB/releases/download/v0.5.9/SGCB_0.5.9.zip) was built with R 4.5.3 for x86_64 Windows. Install directly from the release URL; compilation is unnecessary:
+For Windows R 4.5.x, use the supplied x86_64 binary:
 
 ```r
-install.packages(
-  "https://github.com/aeqby770/SGCB/releases/download/v0.5.9/SGCB_0.5.9.zip",
-  repos = NULL, type = "win.binary", lib = sgcb_library
-)
+install.packages("release/SGCB_0.6.0.zip", repos=NULL,
+                 type="win.binary", lib=sgcb_library)
 ```
 
-**Source installation.** Install the current v0.5.9 source from GitHub on other platforms or to compile locally. This requires a C++17 compiler; Windows users need Rtools matching their R version. The verified Windows toolchain is R 4.5.3 with Rtools45. See [R's source-installation instructions](https://stat.ethz.ch/R-manual/R-devel/library/utils/html/install.packages.html).
+On other platforms, or to compile locally, use the source archive and a C++17 compiler (matching Rtools on Windows):
 
 ```r
-install.packages("remotes", repos = "https://cloud.r-project.org",
-                 lib = sgcb_library)
-remotes::install_github("aeqby770/SGCB", ref = "main",
-                        lib = sgcb_library, dependencies = NA,
-                        upgrade = "never", build_vignettes = FALSE)
+install.packages("release/SGCB_0.6.0.tar.gz", repos=NULL,
+                 type="source", lib=sgcb_library)
 ```
 
-The release also supplies [SGCB_0.5.9.tar.gz](https://github.com/aeqby770/SGCB/releases/download/v0.5.9/SGCB_0.5.9.tar.gz). After downloading it and installing the dependencies above, use `install.packages("SGCB_0.5.9.tar.gz", repos = NULL, type = "source", lib = sgcb_library)`.
-
-Load the installed package and confirm its version:
+Load the selected package and inspect its help:
 
 ```r
-library(SGCB, lib.loc = sgcb_library)
-packageVersion("SGCB")  # 0.5.9
-find.package("SGCB")
+library(SGCB, lib.loc=sgcb_library)
+packageVersion("SGCB")  # 0.6.0
+help("sgcbDE", package="SGCB")
 ```
 
-## Run the installed example
+The historical public v0.5.9 assets reproduce R1. The 0.6.0 installers are supplied with `SGCB_0.6.0_reproducibility.zip`; use its local files for the current implementation.
+
+## Two-group analysis
 
 ```r
-source(system.file("examples", "minimal_workflow.R", package = "SGCB"))
+both <- sgcbDE(counts, group, normalization="tmm")
+mean_only <- sgcbDE(counts, group, normalization="tmm", endpoint="mean")
+variability_only <- sgcbDE(counts, group, normalization="tmm", endpoint="variability")
 ```
 
-The example analyzes a fixed 120-gene, 100-sample matrix and writes `SGCB_minimal_results.csv`. It demonstrates the public API and its output fields. The input is deterministic and requires no download.
+Each single-endpoint call returns the estimates, adjusted scores and calls for that endpoint. Use the default for two endpoints, distribution-fit diagnostics and joint exploratory scores.
 
-For your own data, provide a nonnegative gene-by-sample matrix and a two-level group factor in matching sample order. The first level is the control; effects compare the second level with the first.
+Supply a nonnegative gene-by-sample matrix and a two-level group factor in matching sample order. Effects compare the second factor level with the first. The groups must be independent. For prepared nonnegative abundances use `normalization="none"` and set filtering on the supplied scale. Protein missingness, biological replication and sample composition need to be handled according to the measurement design. The installed deterministic example is available with `source(system.file("examples", "minimal_workflow.R", package="SGCB"))`.
 
-```r
-result <- sgcbDE(counts, group, normalization = "tmm")
-result[, c("gene_id", "log2FoldChange", "padj", "dv_log2_cv2_ratio",
-           "dv_padj", "dv_ci_lower", "dv_ci_upper", "dv_inference_available",
-           "DE", "DV", "channel")]
-de_genes <- result[result$DE, ]
-dv_genes <- result[result$DV, ]
-```
+## Interpret mean-screening scores
 
-For prepared nonnegative abundances, use `normalization = "none"` and set filtering on their supplied scale. Positive intensities may use `offset = 0`; retain a positive offset for descriptive log summaries when the input includes zeros.
+`pvalue` is normalized cumulative posterior null mass; `padj` is its complete-family BH adjustment. The bound on posterior expected FDP conditions on the fitted empirical-Bayes model, learned hyperparameters and finite catalogue. Frequentist FDR averages realized FDP over repeated datasets. At the default 0.05 cutoff, independent mixed simulations had mean FDRs of 7.0%, 12.2% and 9.3% at 10:10, 10:50 and 50:50. Use these scores to rank and screen mean-change candidates for independent biological confirmation. `DE` and `significantGenes()` identify rows passing this exploratory screen.
 
-## Choose the entry point
+The post hoc 0.01 cutoff reduced mean FDP in the primary 10:50 design, with a loss of power. In 32 additional unequal-depth mixed count matrices, mean FDP was still 11.3% and power 1.2%. Tightening the cutoff therefore provides no general frequentist calibration remedy. Table S28 and `results/mean_screen_thresholds.tsv` retain both evaluated cutoffs.
 
-| Entry point | Role |
-|---|---|
-| `sgcbDE()` | Current two-independent-group arithmetic-mean and total-abundance CV² analysis |
-| `sgcbContrast()`, `sgcbPairwise()` | Metadata-aligned wrappers around the current `sgcbDE()` method |
-| `sgcbDReg()`, `sgcbProtein()`, `sgcbPseudobulk()` | Retained distributional-regression implementation; the protein and pseudobulk helpers call `sgcbDReg()` |
-| `SGCBConfig()` and bootstrap helpers | Configuration and utilities retained for the earlier implementation |
-
-Use `sgcbDE()` for the v0.5.9 analysis, including independently replicated pseudobulk counts and prepared protein abundances. Aggregation, normalization, protein missingness and covariate handling follow the data's measurement and replication design. The two-group entry point requires independent groups. The companion reproduction archive supplies the manuscript's separate conditional-CV² sensitivity for covariates and donor clustering.
-
-Version 0.5.9 changes the inference and output meanings relative to v0.4.1. Recompute an analysis when adopting the current method; [NEWS.md](NEWS.md) describes the argument and output changes.
+At a zero fitted global null weight, the mean score uses the continuous likelihood-ratio limit of normalized null mass. The full fit records its scoring regime. If every represented null likelihood is zero, the fit returns no ranked discoveries. This rule changes neither the exploratory interpretation nor the calibration limits above.
 
 ## Model and output reference
 
@@ -96,7 +70,7 @@ Regularized gene-wise GG fits provide descriptive diagnostics using a fixed N(0,
 | `log2FoldChange`, `lfcSE`, `pvalue`, `padj` | Empirical-Bayes posterior mean/SD of the log2 arithmetic-mean ratio, posterior null-mass score and full-family BH adjustment |
 | `dv_log2_cv2_ratio`, `dv_se_log2_cv2`, `dv_pvalue`, `dv_padj` | Fitted-state mean log2 CV² contrast, uncertainty-scale summary, two-sided tail bound and full-family BH screening adjustment |
 | `dv_ci_lower`, `dv_ci_upper` | Corresponding 95% interval for the log2 CV² contrast; observed-zero intervals invert the bounded Student reference |
-| `ctrl_nonzero_fraction`, `treat_nonzero_fraction` | Observed positive fractions |
+| `ctrl_positive_n`, `treat_positive_n`, `ctrl_nonzero_fraction`, `treat_nonzero_fraction` | Positive counts and fractions in the default two-endpoint output |
 | `ctrl_mu`, `ctrl_sigma`, `ctrl_Q` and treatment counterparts | Descriptive gene-wise positive-part Prentice GG parameters |
 | `fit_converged`, `fit_covariance_available`, `dv_moments_finite`, `dv_inference_available` | Separate gene-wise fit diagnostics and population CV² availability |
 | `logspread_pvalue`, `logspread_padj` | Separate median-centered Brown–Forsythe log-spread summary |
@@ -121,7 +95,7 @@ The [v0.5.9 release](https://github.com/aeqby770/SGCB/releases/tag/v0.5.9) also 
 
 ## Historical submitted implementation
 
-The v0.4.1 tag preserves the originally submitted source and reproduction files. The current method and installed example are versioned under v0.5.9.
+The v0.4.1 tag preserves the originally submitted source and reproduction files. The v0.5.9 release preserves the software and example used for the first revision (R1).
 
 The command below installs the original v0.4.1 method:
 
@@ -129,10 +103,22 @@ The command below installs the original v0.4.1 method:
 remotes::install_github("aeqby770/SGCB", ref = "v0.4.1")
 ```
 
-Use the v0.5.9 source or Windows archive for the current method. The v0.4.1 tag supports reproduction of the original submission.
+Use the SGCB 0.6.0 source or Windows package supplied here for this revision. Use v0.5.9 to reproduce R1. The v0.4.1 tag supports reproduction of the original submission.
 
 ## Input requirements and evaluation
 
-Population DV requires at least four positive observations per group and assumes finite second moments. When every gene lacks eligible DV observations, the function returns DE estimates with DV marked unavailable. Sparse positives, influential tails and model misspecification affect power and calibration. The target is variability in observed abundance. `sgcbDE()` fits two independent groups; the companion `development/57_cv_moment_regression.cpp` and `experiments/sle_classical_monocytes_biology.R` supply a separate conditional-moment sensitivity for covariates and donor clustering. The interface table above identifies the legacy regression and bootstrap helpers.
+Population DV requires at least four nonconstant positive observations per group and assumes finite second moments. This is an eligibility rule. Reliability also depends on sample size, positive support and the effect mechanism. In the fixed sparse reinforcing 10:10 scenario, 126/200 comparisons had intervals and 93/126 covered the truth (73.81% for nominal 95% intervals). Power was 0%, 39% and 86.5% at 10:10, 10:50 and 50:50. Separate independent mixed 10:10 matrices detected 2/11,520 true CV² changes. These results establish no universal adequate sample size. Plan replication using expected detection fractions in each group.
+
+For each gene, report both group sizes, positive counts, `dv_inference_available`, `dv_log2_cv2_ratio`, `dv_ci_lower`, `dv_ci_upper` and `dv_padj`. Single-endpoint output omits positive counts; obtain them from the corresponding input columns. Unavailable comparisons are unestimable. A nonsignificant result with sparse positives or limited power leaves variability changes unresolved. Interpret available intervals conditionally on the learned catalogue and local approximation, with the observed sparse-scenario undercoverage in mind. Tables S29–S30 provide mechanism-specific availability and coverage.
+
+The target is CV² of observed abundance after preprocessing and normalization. Sequencing depth and sampling noise, normalization, batch effects and sample composition can contribute alongside biology. A significant DV screen alone leaves intrinsic biological heterogeneity unresolved. Under Gamma–Poisson sampling, exposure-normalized observed CV² is latent dispersion plus `1/(exposure * latent_mean)`; depth can therefore change the target at fixed biological dispersion (Table S31).
+
+`sgcbDE()` is the current two-independent-group method. `sgcbContrast()` and `sgcbPairwise()` align metadata and call it. `sgcbDReg()`, `sgcbProtein()` and `sgcbPseudobulk()` retain the earlier distributional-regression workflow; the latter two call `sgcbDReg()`. Covariate sensitivities for the manuscript are separate conditional-moment analyses in the archived R1 code and results, rather than covariate terms in the primary two-group model.
 
 On the fixed observed-zero inputs, v0.5.9 detected 216/1,000 true CV² changes with no finite-null or undefined-truth calls at 10:50, and 613 true changes with three false calls at 50:50. Observed-zero 10:10 yielded no discoveries. Positive-panel true/false counts were 598/1, 1,190/1 and 1,186/1 across 10:10, 10:50 and 50:50. Matched Gamma and lognormal controls report detection, effect accuracy and availability by scenario. Mean-only reference validations use the unchanged v0.5.7 mean implementation and original inputs. `REPRODUCE.md` identifies the implementation and inputs for each evaluation.
+
+## Choose an analysis
+
+SGCB is suited to zero-containing abundances when relative variability of the full distribution is a primary target, positive support is adequate in both groups, and across-gene distribution sharing is useful. The matched observed-zero 10:50 and 50:50 panels favor GG over Gamma and lognormal restrictions; the Gamma-generated positive alternatives favor the simpler Gamma restriction. In the independent same-input 50:50 comparison, a direct moment-based CV² test had power 76.9% and mean FDP 7.1%, versus 71.5% and 4.0% for SGCB. A direct CV² method is reasonable when moments are stable and its calibration is appropriate for the data; these results describe a power–error trade-off rather than uniform superiority.
+
+For routine mean-focused RNA-seq, especially with covariates or systematic depth differences, use an established count workflow such as edgeR or DESeq2. Limma is a simpler mean-focused option for appropriately prepared continuous abundances. Select the method by the estimand, replication and measurement design. The two-group SGCB mean endpoint remains exploratory.

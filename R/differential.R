@@ -29,7 +29,8 @@ NULL
 
 #' @param counts Nonnegative gene-by-sample counts or normalized abundances.
 #' @param group A factor or vector defining two independent groups.
-#' @param alpha Benjamini-Hochberg threshold, default 0.05.
+#' @param alpha Complete-family BH screening cutoff, default 0.05. Mean calls
+#'   are exploratory and have a fitted-model posterior-risk interpretation.
 #' @param min_count Minimum value used by the expression filter.
 #' @param min_samples Required number of samples meeting min_count.
 #' @param normalization Either "tmm" for counts or "none" for normalized abundance.
@@ -38,10 +39,19 @@ NULL
 #' @param shape_prior_sd Prior standard deviation of Q for the descriptive gene-wise GG fit; default 1.
 #' @param threads Number of OpenMP threads. Defaults to SGCB_THREADS when set,
 #'   otherwise to all available cores.
-#' @return An SGCBResults data frame. pvalue is cumulative posterior null mass
-#'   ordered by posterior null probability and normalized by total null mass;
-#'   padj is its complete-family BH adjustment. Under the population model this
-#'   controls posterior expected false discovery proportion. log2FoldChange and
+#' @param endpoint "both" fits both endpoints and descriptive diagnostics. "mean" or
+#'   "variability" returns a data frame for the selected endpoint only.
+#' @return The default returns an SGCBResults data frame. pvalue is cumulative posterior null mass
+#'   ordered by posterior null probability and normalized by total null mass.
+#'   At zero fitted null weight, the ranking uses the one-sided limit given by
+#'   the null-to-alternative likelihood ratio with the fitted nuisance distribution fixed;
+#'   padj is its complete-family BH screening adjustment. The posterior expected
+#'   false discovery proportion bound is conditional on the fitted empirical-Bayes
+#'   model, hyperparameters and finite catalogue. Use pvalue and padj for exploratory
+#'   mean ranking and screening. In independent mixed simulations, mean FDR was
+#'   7.0-12.2 percent at 0.05; a 0.01 cutoff still gave mean FDP 11.3 percent in
+#'   additional unequal-depth count mixtures. Tightening the cutoff provides no
+#'   general frequentist FDR guarantee. log2FoldChange and
 #'   lfcSE are the mean and standard deviation of the joint log2 mean-ratio
 #'   posterior, including the zero-effect class; log2FC_shrunk is the same posterior
 #'   mean. stat is their standardized ratio, not a t-test statistic.
@@ -65,6 +75,19 @@ NULL
 #'   Population controls, convergence, and posterior summaries are attributes.
 #'   When no gene has at least four positive observations in both groups,
 #'   DV scores are unavailable; mean inference can still borrow nuisance information.
+#' @details Report both group sizes and positive-observation counts. Four nonconstant
+#'   positive observations per group determine DV eligibility; reliable estimation requires
+#'   adequate support. In the fixed sparse reinforcing 10:10 scenario, 126 of 200
+#'   contrasts had intervals and 93 of 126 covered the truth (73.81 percent for
+#'   nominal 95 percent intervals). Independent mixed 10:10 matrices detected
+#'   2 of 11,520 true CV-squared changes. These results establish no universally
+#'   adequate sample size. A nonsignificant sparse result leaves changes unresolved.
+#'   Interpret intervals conditionally on the learned catalogue and local reference.
+#'   The target is variability in observed normalized abundance. Sequencing depth,
+#'   sampling noise, normalization, batch effects and sample composition can
+#'   contribute. Primary DV significance alone leaves intrinsic biological
+#'   heterogeneity unresolved. See the README and reproduction tables S28-S31
+#'   for practical interpretation and method selection.
 #' @export
 #' @examples
 #' \donttest{
@@ -72,7 +95,9 @@ NULL
 #' }
 sgcbDE <- function(counts, group, alpha=0.05, min_count=10, min_samples=2,
                    normalization="tmm", offset=0.5, shape_prior_sd=1,
-                   threads=as.integer(Sys.getenv("SGCB_THREADS",as.character(parallel::detectCores())))) {
+                   threads=as.integer(Sys.getenv("SGCB_THREADS",as.character(parallel::detectCores()))),
+                   endpoint=c("both","mean","variability")) {
+    endpoint <- match.arg(endpoint)
     eps <- 1e-8
     counts <- as.matrix(counts)
     group <- factor(group)
@@ -104,6 +129,25 @@ sgcbDE <- function(counts, group, alpha=0.05, min_count=10, min_samples=2,
     }
     x <- sweep(x,2,sf,"/")
     time_mean <- proc.time()[[3]]
+    kernel_cache <- new.env(parent=emptyenv())
+    if (endpoint=="mean") {
+        model <- .populationMean(x,group_int,as.integer(threads))
+        z <- model$genes
+        q <- p.adjust(z$p,"BH",n=n_genes)
+        return(data.frame(gene_id=gene_id,log2FoldChange=z$effect,lfcSE=z$se,
+            pvalue=z$p,padj=q,de_inference_available=z$available==1,
+            DE=z$available==1 & q<alpha,row.names=gene_id))
+    }
+    if (endpoint=="variability") {
+        model <- .populationGG(x,group_int,as.integer(threads),alpha)
+        z <- model$genes
+        available <- z$available==1
+        p <- z$p; p[!available] <- NA_real_
+        q <- p.adjust(p,"BH",n=n_genes)
+        return(data.frame(gene_id=gene_id,dv_log2_cv2_ratio=z$effect,dv_se_log2_cv2=z$se,
+            dv_ci_lower=z$lower,dv_ci_upper=z$upper,dv_pvalue=p,dv_padj=q,
+            dv_inference_available=available,DV=!is.na(q) & q<alpha,row.names=gene_id))
+    }
 
     # Moderated log-variances are descriptive; the DE endpoint is an arithmetic mean.
     logx <- log2(x+offset)
@@ -115,7 +159,6 @@ sgcbDE <- function(counts, group, alpha=0.05, min_count=10, min_samples=2,
     var1 <- matrixStats::rowVars(logx[,treat,drop=FALSE])+eps
     pooled <- ((n0-1)*var0+(n1-1)*var1)/(n0+n1-2)
     moderated <- adaptive_squeeze_var_hierarchical_cpp(pooled,base_mean+offset+eps,n0+n1,FALSE,eps)
-    kernel_cache <- new.env(parent=emptyenv())
     mean_population <- .populationMean(x,group_int,as.integer(threads),kernel_cache)
     mean_posterior <- mean_population$genes
     logfc <- mean_posterior$effect
@@ -395,11 +438,13 @@ print.SGCBResults <- function(x, ...) {
     invisible(x)
 }
 
-#' Extract significant genes
+#' Extract genes passing the exploratory mean screen
 #' @param x SGCBResults object
-#' @param padj_cutoff Adjusted p-value threshold
+#' @param padj_cutoff BH-adjusted mean-screening score cutoff
 #' @param lfc_cutoff Absolute log2FC threshold
-#' @return Subset of significant genes (data.frame)
+#' @return Subset passing the mean screen and effect threshold (data.frame).
+#'   The fitted-model interpretation and frequentist calibration limits of
+#'   sgcbDE() also apply to this subset.
 #' @export
 #' @examples
 #' \donttest{

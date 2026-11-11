@@ -687,11 +687,27 @@ utils::globalVariables(c(".","Q","epsilon","left","log_sigma","moment_increment"
     stopifnot(density_error<1e-8,null_error<1e-8)
     posterior_null <- joint_fit$posterior_null
     available <- positive[seq_len(ng)]>0L & positive[ng+seq_len(ng)]>0L
-    score <- ifelse(available,posterior_null,Inf)
-    total_null <- sum(posterior_null)
-    p <- cumsum(posterior_null[order(score)])[data.table::frank(score,ties.method="max")]/
-        ifelse(total_null>0,total_null,1)
-    p[!available] <- 1
+    rank_mass <- posterior_null
+    control$mean_score_regime <- "fitted_posterior_null_mass"
+    if (sum(rank_mass)==0 && joint_fit$prior_null==0 && any(available)) {
+        # q_i / pi0 tends to f0_i/f1_i at zero null weight, with the fitted
+        # nuisance distribution held fixed. The common factor cancels in the ranking.
+        nuisance <- rowSums(matrix(joint_fit$weights,ncol=2L))
+        null_weights <- c(nuisance,numeric(length(nuisance)))
+        null_density <- anchored_location_summary_cpp(joint_kernel$dictionary,
+            null_weights,.05,threads,control$probability_tolerance)[,"density"]
+        rank_mass <- null_density/joint_fit$density
+        control$mean_score_regime <- "zero_prior_likelihood_ratio_limit"
+    }
+    total_rank_mass <- sum(rank_mass)
+    p <- rep(1,ng)
+    if (total_rank_mass>0) {
+        score <- ifelse(available,rank_mass,Inf)
+        p <- cumsum(rank_mass[order(score)])[data.table::frank(score,ties.method="max")]/total_rank_mass
+        p[!available] <- 1
+    } else {
+        control$mean_score_regime <- "no_representable_null_ranking"
+    }
     moments <- summary
     genes <- data.frame(effect=direction*moments[,"effect"],
         se=sqrt(pmax(0,moments[,"variance"])),p=p,available=as.integer(available),

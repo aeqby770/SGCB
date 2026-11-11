@@ -13,7 +13,8 @@ sgcbDE(
   normalization = "tmm",
   offset = 0.5,
   shape_prior_sd = 1,
-  threads = as.integer(Sys.getenv("SGCB_THREADS", as.character(parallel::detectCores())))
+  threads = as.integer(Sys.getenv("SGCB_THREADS", as.character(parallel::detectCores()))),
+  endpoint = c("both", "mean", "variability")
 )
 }
 \arguments{
@@ -21,7 +22,8 @@ sgcbDE(
 
 \item{group}{A factor or vector defining two independent groups.}
 
-\item{alpha}{Benjamini-Hochberg threshold, default 0.05.}
+\item{alpha}{Complete-family BH screening cutoff, default 0.05. Mean calls
+are exploratory and have a fitted-model posterior-risk interpretation.}
 
 \item{min_count}{Minimum value used by the expression filter.}
 
@@ -36,12 +38,21 @@ Zero values remain zero in the GG distribution model.}
 
 \item{threads}{Number of OpenMP threads. Defaults to SGCB_THREADS when set,
 otherwise to all available cores.}
+
+\item{endpoint}{Select both endpoints with descriptive diagnostics, or a single endpoint (mean or variability). Single-endpoint calls return a data frame containing that endpoint's scores and calls.}
 }
 \value{
 An SGCBResults data frame. pvalue is cumulative posterior null mass
-ordered by posterior null probability and normalized by total null mass;
-padj is its complete-family BH adjustment. Under the population model this
-controls posterior expected false discovery proportion. log2FoldChange and
+ordered by posterior null probability and normalized by total null mass. At zero
+fitted null weight, the ranking uses the one-sided limit from the null-to-alternative
+likelihood ratio with the fitted nuisance distribution fixed;
+padj is its complete-family BH screening adjustment. The posterior expected
+false discovery proportion bound is conditional on the fitted empirical-Bayes
+model, hyperparameters and finite catalogue. Use pvalue and padj for exploratory
+mean ranking and screening. In independent mixed simulations, mean FDR was
+7.0-12.2 percent at 0.05; a 0.01 cutoff still gave mean FDP 11.3 percent in
+additional unequal-depth count mixtures. Tightening the cutoff provides no
+general frequentist FDR guarantee. log2FoldChange and
 lfcSE are the mean and standard deviation of the joint log2 mean-ratio
 posterior, including the zero-effect class; log2FC_shrunk is the same posterior
 mean. stat is their standardized ratio, not a t-test statistic.
@@ -87,6 +98,21 @@ positive-parameter and frequency covariance into each log-CV-squared contrast.
 A Studentized reference matches degrees of freedom to variance-contribution
 heterogeneity across sample columns within each group.
 Gene-wise regularized GG fits remain descriptive distribution diagnostics.
+}
+\details{
+Report both group sizes and positive-observation counts. Four nonconstant
+positive observations per group determine DV eligibility; reliable estimation requires
+adequate support. In the fixed sparse reinforcing 10:10 scenario, 126 of 200
+contrasts had intervals and 93 of 126 covered the truth (73.81 percent for
+nominal 95 percent intervals). Independent mixed 10:10 matrices detected
+2 of 11,520 true CV-squared changes. These results establish no universally
+adequate sample size. A nonsignificant sparse result leaves changes unresolved.
+Interpret intervals conditionally on the learned catalogue and local reference.
+The target is variability in observed normalized abundance. Sequencing depth,
+sampling noise, normalization, batch effects and sample composition can
+contribute. Primary DV significance alone leaves intrinsic biological
+heterogeneity unresolved. See the README and reproduction tables S28-S31
+for practical interpretation and method selection.
 }
 \examples{
 \donttest{

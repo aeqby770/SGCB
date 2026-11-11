@@ -1,3 +1,12 @@
+# SGCB 0.6.0
+
+- Clarify exploratory mean-score interpretation, fitted-model posterior expected FDP versus repeated-sampling FDR, and the limits of the 0.01 sensitivity cutoff.
+- Document sparse-DV eligibility, positive-count reporting, conditional interval reliability, observed-abundance CV² and suitable alternatives. These documentation changes retain the R2 formulas, implementation, defaults and numerical results.
+
+- At zero fitted null weight, rank arithmetic-mean effects by the continuous limit of the normalized null-mass score. The fitted effects and posterior null probabilities are retained.
+
+- Select arithmetic mean or total relative variability with the endpoint argument of sgcbDE(). Both endpoints and gene-wise diagnostics remain the default.
+
 # SGCB 0.5.9
 
 - Precompute pair-specific zero probabilities and quantile-search bounds once per CV² fit.

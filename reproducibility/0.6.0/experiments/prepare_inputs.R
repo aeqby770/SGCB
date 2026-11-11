@@ -1,0 +1,23 @@
+root <- normalizePath(Sys.getenv("SGCB_R2_ROOT"), mustWork=TRUE)
+real <- readRDS(file.path(root,"reference_0.5.9/data/new_biology/sle_classical_monocytes_2021/input.rds"))
+controls <- as.matrix(real$counts[,tolower(as.character(real$group))=="control",drop=FALSE])
+stopifnot(ncol(controls)==24)
+depth <- colSums(controls)
+norm <- sweep(controls,2,depth/exp(mean(log(depth))),"/")
+n <- rowSums(norm>0)
+m <- rowSums(norm)/pmax(1,n)
+v <- pmax(0,(rowSums(norm^2)-n*m^2)/pmax(1,n-1))
+keep <- n>=3 & is.finite(m) & m>0 & is.finite(v) & v>0
+template <- data.frame(feature=rownames(norm)[keep],mean_positive=m[keep],probability=(n[keep]+0.5)/25,cv2=v[keep]/m[keep]^2)
+# This benchmark specifies positive lognormal laws. Limit their CV squared to a documented finite range.
+template$cv2 <- pmax(0.04,pmin(4,template$cv2))
+saveRDS(template,file.path(root,"experiments","control_template.rds"))
+design <- expand.grid(replicate=1:64,panel=c("mixed","null"),size=c("10_10","10_50","50_50"),KEEP.OUT.ATTRS=FALSE,stringsAsFactors=FALSE)
+technical <- expand.grid(replicate=1:24,panel=c("depth","equal_depth"),size="10_10",KEEP.OUT.ATTRS=FALSE,stringsAsFactors=FALSE)
+jobs <- rbind(design,technical)
+RNGkind("L'Ecuyer-CMRG"); set.seed(12345); first <- .Random.seed
+streams <- Reduce(function(stream,i) parallel::nextRNGStream(stream),seq_len(nrow(jobs)-1L),init=first,accumulate=TRUE)
+jobs$id <- seq_len(nrow(jobs))
+saveRDS(list(jobs=jobs,streams=streams),file.path(root,"experiments","design.rds"))
+write.csv(jobs,file.path(root,"experiments","design.csv"),row.names=FALSE)
+cat("template rows",nrow(template),"unique independent matrices",nrow(jobs),"\n")

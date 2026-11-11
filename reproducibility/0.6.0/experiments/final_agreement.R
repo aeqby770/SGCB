@@ -1,0 +1,29 @@
+root<-normalizePath(Sys.getenv("SGCB_R2_ROOT"),mustWork=TRUE);library(data.table);setDTthreads(1)
+out<-file.path(root,"results");ref<-file.path(root,"reference_0.5.9/results")
+ids<-1:432; paths<-file.path(out,"final",sprintf("matrix_%03d.rds",ids)); stopifnot(all(file.exists(paths)))
+per<-rbindlist(lapply(ids,function(id){
+    a<-readRDS(file.path(out,"reference_scoring",sprintf("matrix_%03d.rds",id)));b<-readRDS(paths[id])
+    stopifnot(identical(a$truth,b$truth),identical(a$moments,b$moments))
+    w<-a$SGCB; z<-b$SGCB; finite<-z$mean_available
+    data.table(id=id,panel=b$job$panel,size=b$job$size,regime=b$mean_score_regime,
+        mean_scores_changed=sum(w$mean_p!=z$mean_p,na.rm=TRUE),mean_calls_changed=sum(xor(w$mean_q<.05,z$mean_q<.05)),
+        variability_changed=!identical(z[,c("dv_p","dv_q","estimate","lower","upper","dv_available")],
+                                     w[,c("dv_p","dv_q","estimate","lower","upper","dv_available")]),
+        missing_changed=!identical(is.finite(w$mean_p),is.finite(z$mean_p)),
+        old_calls=sum(w$mean_q<.05),new_calls=sum(z$mean_q<.05),eligible=sum(finite))
+}))
+stopifnot(!any(per$variability_changed),!any(per$missing_changed),
+    all(per[regime=="fitted_posterior_null_mass",mean_scores_changed]==0L))
+fwrite(per,file.path(out,"final_vs_original_scoring_matrices.tsv"),sep="\t")
+fixed<-list.files(file.path(out,"protected"),pattern="_final_t16\\.rds$",full.names=TRUE);stopifnot(length(fixed)==6L)
+fields<-c("pvalue","padj","DE","dv_log2_cv2_ratio","dv_pvalue","dv_padj","dv_ci_lower","dv_ci_upper","dv_inference_available","DV")
+archive<-rbindlist(lapply(fixed,function(f){
+    n<-sub("_final_t16\\.rds$","",basename(f));z<-readRDS(f);a<-readRDS(file.path(ref,paste0("sgcb_0.5.9_",n,".rds")))
+    stopifnot(identical(z$gene_id,a$gene_id))
+    rbindlist(lapply(fields,function(k){v<-as.numeric(z[[k]]);w<-as.numeric(a[[k]]);data.table(panel=n,field=k,genes=nrow(z),
+        comparable=sum(is.finite(w)&is.finite(v)),missing_changes=sum(xor(is.na(w),is.na(v))),
+        max_absolute_delta=max(c(0,abs(w-v)),na.rm=TRUE),differing_entries=sum(v!=w,na.rm=TRUE))}))
+}))
+fwrite(archive,file.path(out,"r1_protected_final_agreement.tsv"),sep="\t")
+print(per[,.(matrices=.N,genes_changing_call=sum(mean_calls_changed),any_DV_change=any(variability_changed)),by=regime])
+print(archive[field%in%c("DE","DV"),.(sum(differing_entries))])

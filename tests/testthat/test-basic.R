@@ -85,7 +85,11 @@ test_that("population CV-squared preserves group direction and the complete BH f
   expect_false(res$dv_inference_available[1])
   expect_true(is.na(res$dv_pvalue[1]))
   expect_true(sum(res$dv_inference_available)>0)
-  expect_equal(res$pvalue,reverse$pvalue,tolerance=1e-7)
+  # Each control-reference orientation has its own nuisance prior. Check each
+  # score against the R1 likelihood at a small positive null fraction.
+  limiting <- readRDS(test_path("fixtures", "mean_boundary_directions.rds"))
+  expect_equal(res$pvalue,limiting$forward,tolerance=1e-7)
+  expect_equal(reverse$pvalue,limiting$reverse,tolerance=1e-7)
   # The mean prior is learned relative to the supplied control baseline.
   # Test its orientation and observed means; the DV prior below is symmetric.
   expect_equal(sign(res$log2FoldChange),-sign(reverse$log2FoldChange))
@@ -374,4 +378,16 @@ test_that("symmetric paired likelihood agrees with its explicit mixture", {
   expect_true(fit$converged)
   expect_equal(W,t(W),tolerance=1e-12)
   expect_equal(drop(L%*%fit$weights),drop(L%*%reference$weights),tolerance=1e-8)
+})
+
+test_that("a fitted zero null weight retains gene-specific mean evidence", {
+  data <- readRDS(test_path("fixtures", "mean_zero_null_mass.rds"))
+  fit <- sgcbDE(data$x, data$group, normalization="none", min_count=0, min_samples=1,
+                threads=as.integer(Sys.getenv("SGCB_THREADS","1")))
+  model <- attr(fit,"mean_model")$control
+  expect_equal(model$prior_null,0)
+  expect_equal(model$mean_score_regime,"zero_prior_likelihood_ratio_limit")
+  expect_true(length(unique(fit$pvalue[fit$de_inference_available]))>1L)
+  expect_false(all(fit$DE[fit$de_inference_available]))
+  expect_true(all(fit$pvalue[!fit$de_inference_available]==1))
 })

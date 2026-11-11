@@ -2,22 +2,24 @@
 % Please edit documentation in R/differential.R
 \name{significantGenes}
 \alias{significantGenes}
-\title{Extract significant genes}
+\title{Extract genes passing the exploratory mean screen}
 \usage{
 significantGenes(x, padj_cutoff = 0.05, lfc_cutoff = 0)
 }
 \arguments{
 \item{x}{SGCBResults object}
 
-\item{padj_cutoff}{Adjusted p-value threshold}
+\item{padj_cutoff}{BH-adjusted mean-screening score cutoff}
 
 \item{lfc_cutoff}{Absolute log2FC threshold}
 }
 \value{
-Subset of significant genes (data.frame)
+Subset passing the mean screen and effect threshold (data.frame).
+The fitted-model interpretation and frequentist calibration limits of
+sgcbDE() also apply to this subset.
 }
 \description{
-Extract significant genes
+Extract genes passing the exploratory mean screen
 }
 \examples{
 \donttest{
