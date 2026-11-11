@@ -443,8 +443,10 @@ print.SGCBResults <- function(x, ...) {
 #' @param padj_cutoff BH-adjusted mean-screening score cutoff
 #' @param lfc_cutoff Absolute log2FC threshold
 #' @return Subset passing the mean screen and effect threshold (data.frame).
-#'   The fitted-model interpretation and frequentist calibration limits of
-#'   sgcbDE() also apply to this subset.
+#'   The returned rows retain the complete-family scores; scores are not
+#'   recomputed after effect filtering. Interpret the rows as exploratory
+#'   mean-change candidates subject to the calibration limitations described in
+#'   sgcbDE().
 #' @export
 #' @examples
 #' \donttest{

@@ -15,8 +15,10 @@ significantGenes(x, padj_cutoff = 0.05, lfc_cutoff = 0)
 }
 \value{
 Subset passing the mean screen and effect threshold (data.frame).
-The fitted-model interpretation and frequentist calibration limits of
-sgcbDE() also apply to this subset.
+The returned rows retain the complete-family scores; scores are not
+recomputed after effect filtering. Interpret the rows as exploratory
+mean-change candidates subject to the calibration limitations described in
+sgcbDE().
 }
 \description{
 Extract genes passing the exploratory mean screen
