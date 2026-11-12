@@ -8,65 +8,65 @@ DV requires at least four nonconstant positive observations per group for eligib
 
 CV² refers to observed abundance after preprocessing and normalization. Depth and sampling noise, normalization, batch and composition can contribute at fixed intrinsic biological dispersion. The package README and installed help give the same guidance, suitable uses and simpler alternatives.
 
-This archive provides the 0.6.0 source and Windows packages, analysis code and numerical results. The public v0.5.9 release supplies the R1 reference inputs and retained analyses.
+This archive supplies the SGCB 0.6.0 source and Windows packages, analysis programs and independent-study results. Download `SGCB_0.6.0_study_data.zip` from the same [release](https://github.com/aeqby770/SGCB/releases/tag/v0.6.0). Extract both ZIPs into the same writable directory. The data asset creates `study_data/` with fixed inputs, saved study results and native comparator evidence; it contains no SGCB source package or installer.
 
-The 12 November 2026 eligibility fix rejects constant positive groups explicitly and returns unavailable DV results when no group pair has estimable positive variation. The statistical model and default thresholds are unchanged. Six original depth-control matrices (386, 387, 397, 402, 405 and 407) were refitted from their saved random streams with three threads. Their DV records and derived summaries are updated, and all six still have zero DV calls. For the mean endpoint, the stored scores, BH-adjusted scores and availability flags match the R2 records exactly. Remaining numerical records retain their original producing implementations. The original R2 numerical source is preserved in [commit cf1a5d5](https://github.com/aeqby770/SGCB/tree/cf1a5d5cd258d99230b6b0d59f832b67b8ec8ccd).
+## Install the current release
 
-Runtime summaries retain the original R2 benchmark measurements obtained on the 5700X3D. The six corrected refits used the 5900HX; their actual new elapsed times remain in each RDS's `seconds["SGCB"]`, while `timing_reference` preserves the original measurements used for the reference-runtime summaries. `results/eligibility_refit_comparison.tsv` records the availability, calls and mean-output checks. The current source and binaries include the eligibility correction and deterministic boundary tests.
+SGCB 0.6.0 is the installation and refitting target throughout. Start a fresh R session in the extracted directory, install the dependencies listed in the package README, then run:
 
-Unzip SGCB_0.6.0_reproducibility.zip into a writable directory. Tables, probe records and per-matrix results can be read directly there. To regenerate the fits, extract the contents of the public [0.5.9 reproduction archive](https://github.com/aeqby770/SGCB/releases/download/v0.5.9/SGCB_0.5.9_reproducibility.zip) directly into a child directory named reference_0.5.9. Its data, results, software and release folders should then be inside that child directory. Use SGCB 0.6.0 for the independent-calibration analyses and SGCB 0.5.9 for the archived R1 analyses. Run commands from this directory. Package source is in software/SGCB, and the compiled package installs into library/SGCB. The stored design and random streams in experiments/revision_calibration.R recreate each independent simulated matrix.
-
-## Install
-
-Windows R 4.5.x:
 ```r
-dir.create("library",showWarnings=FALSE)
-install.packages("release/SGCB_0.6.0.zip",repos=NULL,type="win.binary",lib="library")
-library(SGCB,lib.loc="library")
+dir.create("library", showWarnings=FALSE)
+install.packages("release/SGCB_0.6.0.zip", repos=NULL, type="win.binary", lib="library")
+library(SGCB, lib.loc="library")
+stopifnot(as.character(packageVersion("SGCB", lib.loc="library")) == "0.6.0")
 ```
 
-For another platform use a C++17 compiler and install release/SGCB_0.6.0.tar.gz with type="source". Package dependencies are in DESCRIPTION. To prepare the separate reference library from the extracted R1 archive, run the following from the same analysis root in R:
-~~~r
-dir.create("reference_0.5.9/library", recursive=TRUE, showWarnings=FALSE)
-install.packages("reference_0.5.9/release/SGCB_0.5.9.tar.gz", repos=NULL, type="source", lib="reference_0.5.9/library")
-~~~
-On Windows R 4.5.x the [released 0.5.9 binary](https://github.com/aeqby770/SGCB/releases/download/v0.5.9/SGCB_0.5.9.zip) can instead be installed to that same reference library with type="win.binary". The numerical study also uses edgeR, testthat, ggplot2, patchwork, scales and ragg, in addition to SGCB's declared dependencies. Python summaries use pandas and NumPy. The R1 numerical inputs and rerun scripts are included in the [published reproduction archive](https://github.com/aeqby770/SGCB/releases/download/v0.5.9/SGCB_0.5.9_reproducibility.zip).
+The Windows binary is for R 4.5.x. On another platform, install `release/SGCB_0.6.0.tar.gz` with `type="source"` and a C++17 compiler. The independent study also requires edgeR, testthat, ggplot2, patchwork, scales and ragg; Python summaries require pandas and NumPy.
 
-## Reproduce the numerical comparison
+## Run the independent study
 
-```powershell
-& 'D:\R\R-4.5.3\bin\Rscript.exe' --vanilla --encoding=UTF-8 'experiments/reproduce.R'
+From the extracted root:
+
+```shell
+Rscript --vanilla --encoding=UTF-8 experiments/reproduce.R
 ```
 
-The entry point resolves its root from its own location and uses the supplied libraries. It can run sequentially. The reported independent simulations used three threads per fit, and the six fixed panels used 16 threads. The replicate runner skips existing per-matrix files; use the separate-directory procedure below to regenerate fits. Table S33 reports same-input timings, which vary by machine and load.
+The entry point resolves its root from its own location and loads the supplied current package from `library/`. It recreates each simulated input from its recorded replicate and random stream. Existing completed fit files are skipped. The independent runs use three threads; the six fixed panels use their recorded 16-thread setting.
 
-### Fresh refit in a separate directory
+- `results/final/` contains the 432 current SGCB fits, including the six eligibility-corrected depth matrices.
+- `results/reference_scoring/` contains fixed comparison records for the original score convention and the same-input moment comparator. These are numerical comparison data, not another software installation. All new fits load SGCB 0.6.0.
+- `experiments/null_boundary.R` evaluates both score conventions from the current package's mean model and posterior null masses. It does not load an earlier package or replace its functions at runtime.
+- `results/boundary/`, `results/outer/`, `results/exposure_final/` and their TSV summaries provide boundary, background-refit and exposure-alignment results.
+- `results/analysis_versions.tsv` maps each analysis to its generating record and source file. `results/r1_file_index.tsv` preserves original author build identifiers solely as record provenance.
 
-For a clean rerun, start with the numerical ZIP and extract everything except the saved results into a new directory. The following R commands preserve the supplied scores for comparison.
+### Fresh refit
 
-~~~r
+Use a separate extraction to preserve the supplied results. Keep the fixed comparison records and omit only the completed fit directories when extracting the code archive:
+
+```r
 archive <- normalizePath("SGCB_0.6.0_reproducibility.zip", mustWork=TRUE)
-fresh <- file.path(dirname(archive),"SGCB_0.6.0_clean_run")
+fresh <- file.path(dirname(archive), "SGCB_0.6.0_clean_run")
 stopifnot(!file.exists(fresh))
 dir.create(fresh)
-entries <- utils::unzip(archive,list=TRUE)$Name
-utils::unzip(archive,files=entries[!startsWith(entries,"results/")],exdir=fresh)
+entries <- utils::unzip(archive, list=TRUE)$Name
+computed <- grepl("^results/(final|protected|outer|exposure_final|boundary)/", entries)
+utils::unzip(archive, files=entries[!computed], exdir=fresh)
+utils::unzip("SGCB_0.6.0_study_data.zip", exdir=fresh)
 setwd(fresh)
-~~~
+```
 
-Extract the linked R1 archive into reference_0.5.9 under this fresh root and install the two package versions into their separate libraries as described above. From the fresh root, run experiments/reproduce.R. The program creates the output folders and fits the matrices using the supplied 0.6.0 implementation.
+Install only SGCB 0.6.0 in this new directory, as above, and run `experiments/reproduce.R`. The saved comparison records provide the unchanged moment-comparator outputs and original-score reference. Fresh fits and score-convention calculations use the current implementation.
 
-- results/final contains scores, decisions, intervals and truth fields from 432 SGCB 0.6.0 fits. Each simulated input matrix is recoverable from its replicate ID.
-- results/reference_scoring contains matched scores from the R1 arithmetic-mean and DV routines. The reference package can regenerate them through the baseline argument. results/reference holds eight separate 0.5.9 package calls.
-- results/boundary and results/boundary_operating_characteristics.tsv contain the unequal-depth count comparisons and 16 independent global-shift backgrounds. The global-shift transformations are paired within each background.
-- results/outer is the background-refit experiment with fixed probes. It measures sensitivity to refitting cross-feature quantities. All 18 full DV refit studies use the same DV implementation as the final package.
-- results/analysis_versions.tsv and results/r1_file_index.tsv map inputs, results and software versions. Comparator predictions retain their method labels. The disease-application fits are retained from R1.
-- results/r1_protected_final_agreement.tsv is the per-gene agreement check on the six original fixed panels. results/final_vs_original_scoring_matrices.tsv records which of the 432 fresh matrices change and which score regime triggers the change.
+## Application analyses and figures
 
-Mean-screening sensitivity at cutoffs 0.05 and 0.01 is in results/mean_screen_thresholds.tsv. The summary script experiments/summarize_revision.R reads the saved adjusted scores and known truths for this calculation.
+The code archive also supplies the original application and figure programs under `study_data/experiments/`, `study_data/development/` and `study_data/visualization/`. Their software-library paths point to the current `library/` directory. For an application worker, set `SGCB_REVISION_ROOT` to the extracted `study_data` directory and `SGCB_LIBRARY` to the extracted root's `library` directory. The common setup checks SGCB 0.6.0 and the matching current source.
 
-The per-probe data for Table S30 are in results/outer_refit_probes.tsv. Per-matrix exposure-alignment results for Table S31 are in results/exposure_final/.
+Original record identifiers in saved filenames are preserved so existing inputs, comparator outputs and downstream results remain traceable. They are data identifiers, rather than instructions to install a development build. Downstream application programs use the supplied saved records by default; `SGCB_STUDY_RECORD_ID` selects the record identifier when evaluating a new application refit. The original qPCR and protein mean predictions remain identified in the supplied file index.
 
-## Figures and supplementary tables
+`study_data/visualization/30_publication_figures.py`, `study_data/visualization/82_new_publication_figures.py` and `study_data/experiments/29_publication_tables.py` read the supplied study records to regenerate figures and tables. These Python programs use pandas, NumPy, SciPy, matplotlib, seaborn, statsmodels and openpyxl. `visualization/figure_S9.R` renders the independent-study figure. The journal workbook is supplied separately.
 
-The R numerical entry point renders Figure S9 with ggplot2 and patchwork. The six main figures and eight original supplementary figures come from the archived analyses. Tables S28–S35 report independent calibration, sparse support, refit sensitivity, known exposure, paired qPCR comparisons, endpoint costs and result provenance. `results/analysis_versions.tsv` maps the producing implementations. The supplementary workbook is a separate journal file.
+## Numerical corrections and timing provenance
+
+Constant positive groups are explicitly ineligible for DV estimation. Six original depth-control matrices (386, 387, 397, 402, 405 and 407) were refitted from their saved streams with three threads. Their DV records and derived summaries are updated; all six still have zero DV calls. For the mean endpoint, the stored scores, BH-adjusted scores and availability flags match the previous submission's records exactly. Other saved records retain their true generating metadata.
+
+Runtime summaries preserve the original benchmark measurements on the 5700X3D. The six corrected refits used the 5900HX; their actual elapsed times remain in `seconds["SGCB"]`, and `timing_reference` preserves the measurements used for the original timing summaries. `results/eligibility_refit_comparison.tsv` records the numerical changes. Times from different hardware are kept separate.

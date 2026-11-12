@@ -1,7 +1,7 @@
 root <- normalizePath(Sys.getenv("SGCB_R2_ROOT"),mustWork=TRUE); lib <- file.path(root,"library")
 library(SGCB,lib.loc=lib); library(data.table)
 stopifnot(as.character(packageVersion("SGCB",lib.loc=lib))=="0.6.0")
-ref <- file.path(root,"reference_0.5.9"); dest <- file.path(root,"results","protected")
+ref <- file.path(root,"study_data"); dest <- file.path(root,"results","protected")
 dir.create(dest,showWarnings=FALSE); threads <- as.integer(Sys.getenv("SGCB_THREADS","3"))
 plan <- data.frame(panel=rep(c("zero","channel"),3),n0=c(10L,10L,10L,10L,50L,50L),n1=c(10L,10L,50L,50L,50L,50L))
 run_panel <- function(j) {

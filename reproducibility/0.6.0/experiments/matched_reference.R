@@ -1,9 +1,9 @@
 root <- normalizePath(Sys.getenv("SGCB_R2_ROOT"),mustWork=TRUE); args <- commandArgs(TRUE)
-edition <- args[1]; lib <- if(edition=="reference") file.path(root,"reference_0.5.9/library") else file.path(root,"library")
+edition <- args[1]; stopifnot(edition=="final"); lib <- file.path(root,"library")
 threads <- as.integer(args[2]); panels <- args[-(1:2)]
 Sys.setenv(OMP_NUM_THREADS=threads,OPENBLAS_NUM_THREADS=threads,MKL_NUM_THREADS=threads)
 data.table::setDTthreads(threads);library(SGCB,lib.loc=lib)
-ref <- file.path(root,"reference_0.5.9");out <- file.path(root,"results","protected")
+ref <- file.path(root,"study_data");out <- file.path(root,"results","protected")
 dir.create(out,recursive=TRUE,showWarnings=FALSE)
 match_one <- function(panel) {
     old <- readRDS(file.path(ref,"results",paste0("sgcb_0.5.9_",panel,".rds")))

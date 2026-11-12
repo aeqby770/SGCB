@@ -1,7 +1,7 @@
-# Independent positive-null-weight limit using the R1 likelihood.
-root<-normalizePath(Sys.getenv("SGCB_R2_ROOT"),mustWork=TRUE);lib<-file.path(root,"reference_0.5.9/library")
+# Independent positive-null-weight limit using the current installed likelihood.
+root<-normalizePath(Sys.getenv("SGCB_R2_ROOT"),mustWork=TRUE);lib<-file.path(root,"library")
 library(SGCB,lib.loc=lib); env<-new.env(parent=asNamespace("SGCB"))
-txt<-paste(readLines(file.path(root,"reference_0.5.9/software/SGCB/R/population.R"),encoding="UTF-8"),collapse="\n")
+txt<-paste(readLines(file.path(root,"software/SGCB/R/population.R"),encoding="UTF-8"),collapse="\n")
 marker<-"    moments <- summary\n    genes <- data.frame(effect=direction*moments"
 addition<-'    eta <- 1e-8
     nuisance <- rowSums(matrix(joint_fit$weights,ncol=2L))

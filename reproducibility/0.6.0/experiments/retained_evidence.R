@@ -1,5 +1,5 @@
 root <- normalizePath(Sys.getenv("SGCB_R2_ROOT"),mustWork=TRUE)
-library(data.table); r <- file.path(root,"reference_0.5.9","results"); out <- file.path(root,"results")
+library(data.table); r <- file.path(root,"study_data","results"); out <- file.path(root,"results")
 scores <- fread(file.path(r,"sgcb_0.5.7_seqc_qpcr_gene_scores.csv"))
 methods <- c("SGCB","DESeq2","edgeR")
 wide <- dcast(scores[method%in%methods],gene + log2FC_qpcr_B_over_A+log2FC_qpcr_arithmetic_B_over_A ~ method,value.var="pvalue")
@@ -44,9 +44,9 @@ ext <- fread(file.path(r,"sgcb_0.5.9_kirc_external_survival.csv"))[term=="DV_onl
 fwrite(rbindlist(list(held_out=hrs,external=ext),idcol="cohort",fill=TRUE),file.path(out,"retained_primary_survival.tsv"),sep="\t")
 # Retain actual generating versions, with a concrete filename for every released numerical file.
 raw <- list.files(r,pattern="[.](rds|csv|tsv)$",full.names=FALSE)
-map <- data.table(file=file.path("reference_0.5.9/results",raw),fit_version=NA_character_,role="published companion table or model; consult the cited source input")
-map[grepl("/sgcb_0[.]5[.]7_",file),':='(fit_version="0.5.7",role="retained mean analysis or its downstream evaluation; comparator rows retain original method identity")]
-map[grepl("/sgcb_0[.]5[.]9_",file),':='(fit_version="0.5.9",role="R1 full or downstream result; external method rows retain their own generating method")]
-map[grepl("/cv_matched_families_0[.]5[.]9_",file),':='(fit_version="0.5.9",role="matched-kernel restriction of SGCB")]
-map[,bundle:="0.5.9"]; fwrite(map,file.path(out,"r1_file_index.tsv"),sep="\t",na="")
+map <- data.table(file=file.path("study_data/results",raw),author_build_id=NA_character_,role="published companion table or model; consult the cited source input")
+map[grepl("/sgcb_0[.]5[.]7_",file),':='(author_build_id="0.5.7",role="retained mean analysis or its downstream evaluation; comparator rows retain original method identity")]
+map[grepl("/sgcb_0[.]5[.]9_",file),':='(author_build_id="0.5.9",role="R1 full or downstream result; external method rows retain their own generating method")]
+map[grepl("/cv_matched_families_0[.]5[.]9_",file),':='(author_build_id="0.5.9",role="matched-kernel restriction of SGCB")]
+map[,bundle:="SGCB 0.6.0 study data"]; map[,software_for_refit:="SGCB 0.6.0"]; fwrite(map,file.path(out,"r1_file_index.tsv"),sep="\t",na="")
 print(aucs[threshold==1]); print(resources[grepl("kirc|masld|sle",stage),.(stage,elapsed_seconds,peak_GiB)])

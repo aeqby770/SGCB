@@ -1,5 +1,5 @@
 root<-normalizePath(Sys.getenv("SGCB_R2_ROOT"),mustWork=TRUE);library(data.table);setDTthreads(1)
-out<-file.path(root,"results");ref<-file.path(root,"reference_0.5.9/results")
+out<-file.path(root,"results");ref<-file.path(root,"study_data/results")
 ids<-1:432; paths<-file.path(out,"final",sprintf("matrix_%03d.rds",ids)); stopifnot(all(file.exists(paths)))
 per<-rbindlist(lapply(ids,function(id){
     a<-readRDS(file.path(out,"reference_scoring",sprintf("matrix_%03d.rds",id)));b<-readRDS(paths[id])

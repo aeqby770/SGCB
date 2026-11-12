@@ -91,19 +91,9 @@ The installed example uses deterministic input and writes `SGCB_minimal_results.
 
 ## Reproduce the analyses
 
-The [0.6.0 reproduction archive](https://github.com/aeqby770/SGCB/releases/download/v0.6.0/SGCB_0.6.0_reproducibility.zip) contains the independent-study code and results. Six original unequal-depth matrices were refitted after the constant-positive eligibility correction, using the saved random streams. The [v0.5.9 archive](https://github.com/aeqby770/SGCB/releases/download/v0.5.9/SGCB_0.5.9_reproducibility.zip) preserves the reference inputs and retained R1 analyses. Start with `REPRODUCE.md` in the 0.6.0 archive; it identifies producing versions, original timing references and the eligibility-corrected records. The repository's `reproducibility/` directory contains analysis and visualization code separately from the R package.
+SGCB 0.6.0 is the supported release for installation and refitting. Download the [reproduction archive](https://github.com/aeqby770/SGCB/releases/download/v0.6.0/SGCB_0.6.0_reproducibility.zip) and the [study data](https://github.com/aeqby770/SGCB/releases/download/v0.6.0/SGCB_0.6.0_study_data.zip) from the same release and extract both into one directory. The code archive supplies the current package and analysis programs; the data asset supplies fixed inputs, saved study results and native comparator evidence.
 
-## Historical submitted implementation
-
-The v0.4.1 tag preserves the originally submitted source and reproduction files. The v0.5.9 release preserves the software and example used for the first revision (R1).
-
-The command below installs the original v0.4.1 method:
-
-```r
-remotes::install_github("aeqby770/SGCB", ref = "v0.4.1")
-```
-
-Use the SGCB 0.6.0 source or Windows package supplied here for this revision. Use v0.5.9 to reproduce R1. The v0.4.1 tag supports reproduction of the original submission.
+Start with `REPRODUCE.md`. All documented fits load SGCB 0.6.0 from the supplied library. Original author build identifiers retained in saved records are provenance metadata, rather than additional package versions to install. The repository's `reproducibility/0.6.0/` directory contains the corresponding analysis and visualization code.
 
 ## Input requirements and evaluation
 
@@ -115,7 +105,7 @@ The target is CV² of observed abundance after preprocessing and normalization. 
 
 `sgcbDE()` is the current two-independent-group method. `sgcbContrast()` and `sgcbPairwise()` align metadata and call it. `sgcbDReg()`, `sgcbProtein()` and `sgcbPseudobulk()` retain the earlier distributional-regression workflow; the latter two call `sgcbDReg()`. Covariate sensitivities for the manuscript are separate conditional-moment analyses in the archived R1 code and results, rather than covariate terms in the primary two-group model.
 
-On the fixed observed-zero inputs, v0.5.9 detected 216/1,000 true CV² changes with no finite-null or undefined-truth calls at 10:50, and 613 true changes with three false calls at 50:50. Observed-zero 10:10 yielded no discoveries. Positive-panel true/false counts were 598/1, 1,190/1 and 1,186/1 across 10:10, 10:50 and 50:50. Matched Gamma and lognormal controls report detection, effect accuracy and availability by scenario. Mean-only reference validations use the unchanged v0.5.7 mean implementation and original inputs. `REPRODUCE.md` identifies the implementation and inputs for each evaluation.
+On the fixed observed-zero inputs, SGCB detected 216/1,000 true CV² changes with no finite-null or undefined-truth calls at 10:50, and 613 true changes with three false calls at 50:50. Observed-zero 10:10 yielded no discoveries. Positive-panel true/false counts were 598/1, 1,190/1 and 1,186/1 across 10:10, 10:50 and 50:50. Matched Gamma and lognormal controls report detection, effect accuracy and availability by scenario. The study data retain the original inputs and saved mean-validation estimates. `REPRODUCE.md` identifies the corresponding numerical records and current analysis entry points.
 
 ## Choose an analysis
 

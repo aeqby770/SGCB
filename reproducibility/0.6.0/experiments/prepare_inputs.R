@@ -1,5 +1,5 @@
 root <- normalizePath(Sys.getenv("SGCB_R2_ROOT"), mustWork=TRUE)
-real <- readRDS(file.path(root,"reference_0.5.9/data/new_biology/sle_classical_monocytes_2021/input.rds"))
+real <- readRDS(file.path(root,"study_data/data/new_biology/sle_classical_monocytes_2021/input.rds"))
 controls <- as.matrix(real$counts[,tolower(as.character(real$group))=="control",drop=FALSE])
 stopifnot(ncol(controls)==24)
 depth <- colSums(controls)

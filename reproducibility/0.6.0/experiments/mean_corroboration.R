@@ -1,7 +1,7 @@
 root <- normalizePath(Sys.getenv("SGCB_R2_ROOT"),mustWork=TRUE)
 library(data.table); setDTthreads(1)
 source(file.path(root,"experiments/revision_calibration.R"))
-ref <- file.path(root,"reference_0.5.9"); result <- file.path(ref,"results"); out <- file.path(root,"results")
+ref <- file.path(root,"study_data"); result <- file.path(ref,"results"); out <- file.path(root,"results")
 indices <- CJ(panel=c("channel","zero"),design=c("10_10","10_50","50_50"))
 fixed <- function(panel,design) {
     id <- paste0(panel,"_n",design)

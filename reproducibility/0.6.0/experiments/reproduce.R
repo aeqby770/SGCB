@@ -14,8 +14,8 @@ run<-function(script,args=character()) {
     if(status!=0L)stop("Stage failed. See ",log)
 }
 e<-function(name,args=character())run(file.path("experiments",name),args)
-e("prepare_inputs.R");e("replicate.R",c("reference",1,65,129,193,257,321,385,409))
-e("replicate.R",c("baseline",1:432));e("replicate.R",c("final",1:432))
+# The saved original-scoring records are comparison data; all fits use the current package.
+e("prepare_inputs.R");e("replicate.R",c("final",1:432))
 e("matched_reference.R",c("final","16","channel_n10_10","channel_n10_50","channel_n50_50","zero_n10_10","zero_n10_50","zero_n50_50"))
 e("outer_refit.R",c(2:13,258:263));e("depth_and_outer.R","depth");e("depth_and_outer.R","outer")
 e("exposure_sensitivity.R",1:24);e("known_exposure_ql.R");e("summarize_exposure.R")
