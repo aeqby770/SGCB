@@ -3,8 +3,9 @@ DATA_ROOT <- normalizePath(Sys.getenv("SGCB_DATA_ROOT",ROOT),winslash="/",mustWo
 LABEL <- "sle_classical_monocytes_2021"
 TYPE <- "counts"
 INPUT <- file.path(DATA_ROOT,"data","new_biology",LABEL,"input.rds")
-RECORD_ID <- Sys.getenv("SGCB_STUDY_RECORD_ID","0.5.9")
+RECORD_ID <- Sys.getenv("SGCB_STUDY_RECORD_ID","0.6.0")
 PREFIX <- file.path(ROOT,"results",paste0("sgcb_",RECORD_ID,"_",LABEL))
+ANNOTATION_FILE <- file.path(DATA_ROOT,"data","biological_story_annotation_cache",paste0(LABEL,"_enrichment_annotation.rds"))
 THREADS <- as.integer(Sys.getenv("SGCB_THREADS",as.character(parallel::detectCores())))
 ALPHA <- .05
 MIN_SET <- 10L
@@ -96,40 +97,13 @@ fwrite(m,paste0(PREFIX,"_covariate_samples.csv"))
 analysis <- list(normalized_abundance=x,group=group,annotation=annotation,complete=complete,
     baseline_design=baseline_design,clinical_design=clinical_design,samples=meta,input=INPUT)
 saveRDS(analysis,paste0(PREFIX,"_analysis_data.rds"))
-go <- readRDS(file.path(DATA_ROOT,"data","biological_story_annotation_cache","go_term_maps_human.rds"))
-kegg <- readRDS(file.path(DATA_ROOT,"data","biological_story_annotation_cache","kegg_term_maps_hsa.rds"))
-keys <- results[,.(gene_id,mapping_key=gene_id)]
-mapping <- as.data.table(AnnotationDbi::select(org.Hs.eg.db::org.Hs.eg.db,
-    keys=intersect(keys$mapping_key,AnnotationDbi::keys(org.Hs.eg.db::org.Hs.eg.db,keytype=KEYTYPE)),
-    columns="ENTREZID",keytype=KEYTYPE))
-setnames(mapping,KEYTYPE,"mapping_key")
-mapping <- unique(merge(keys,mapping[!is.na(ENTREZID)],by="mapping_key"))
-mapping[,feature_multiplicity:=length(unique(ENTREZID)),by=gene_id]
-mapping[,entrez_multiplicity:=length(unique(gene_id)),by=ENTREZID]
-mapping <- mapping[feature_multiplicity==1 & entrez_multiplicity==1]
-
-bp <- as.data.table(AnnotationDbi::toTable(GO.db::GOBPANCESTOR))
-mf <- as.data.table(AnnotationDbi::toTable(GO.db::GOMFANCESTOR))
-cc <- as.data.table(AnnotationDbi::toTable(GO.db::GOCCANCESTOR))
-setnames(bp,c("GO","ancestor"))
-setnames(mf,c("GO","ancestor"))
-setnames(cc,c("GO","ancestor"))
-ancestors <- rbindlist(list(bp[,ONTOLOGY:="BP"],mf[,ONTOLOGY:="MF"],cc[,ONTOLOGY:="CC"]))
-direct <- as.data.table(go$term2gene)[ENTREZID %in% mapping$ENTREZID]
-inherited <- merge(direct,ancestors,by=c("GO","ONTOLOGY"),allow.cartesian=TRUE)
-go_links <- unique(rbindlist(list(direct[,.(ENTREZID,term=GO,collection=paste0("GO:",ONTOLOGY))],
-    inherited[!is.na(ancestor),.(ENTREZID,term=ancestor,collection=paste0("GO:",ONTOLOGY))])))
-go_names <- as.data.table(AnnotationDbi::select(GO.db::GO.db,keys=unique(go_links$term),
-    columns="TERM",keytype="GOID"))[,.(term=GOID,description=TERM)]
-reactome_links <- as.data.table(AnnotationDbi::toTable(reactome.db::reactomePATHID2EXTID))
-reactome_names <- as.data.table(AnnotationDbi::toTable(reactome.db::reactomePATHID2NAME))
-terms <- unique(rbindlist(list(go_links,
-    as.data.table(kegg$term2gene)[,.(ENTREZID,term=pathway_id,collection="KEGG")],
-    reactome_links[grepl("^R-HSA-",DB_ID),.(ENTREZID=gene_id,term=DB_ID,collection="Reactome")])))
-term_names <- unique(rbindlist(list(go_names,
-    as.data.table(kegg$term2name)[,.(term=pathway_id,description=pathway_name)],
-    reactome_names[grepl("^R-HSA-",DB_ID),.(term=DB_ID,
-        description=sub("^Homo sapiens: ","",path_name))])))
+# Original study annotations are supplied as fixed input data.
+annotation_input <- readRDS(ANNOTATION_FILE)
+stopifnot(identical(attr(primary,"input_id"),annotation_input$input_id),
+    setequal(results$gene_id,annotation_input$gene_ids))
+mapping <- as.data.table(annotation_input$mapping)
+terms <- as.data.table(annotation_input$terms)
+term_names <- as.data.table(annotation_input$term_names)
 background <- rbindlist(list(
     results[is.finite(pvalue),.(gene_id,gene_name,category="DE_up",selected=DE & log2FoldChange>0)],
     results[is.finite(pvalue),.(gene_id,gene_name,category="DE_down",selected=DE & log2FoldChange<0)],
@@ -196,3 +170,5 @@ fwrite(observation,paste0(PREFIX,"_example_observations.csv"))
 fwrite(empirical,paste0(PREFIX,"_example_empirical.csv"))
 fwrite(effects,paste0(PREFIX,"_example_effects.csv"))
 print(channel_summary)
+annotation_versions <- as.data.table(annotation_input$versions)
+fwrite(annotation_versions,paste0(PREFIX,"_annotation_versions.csv"))

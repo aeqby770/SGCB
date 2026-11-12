@@ -2,7 +2,7 @@ ROOT <- normalizePath(Sys.getenv("SGCB_REVISION_ROOT"),winslash="/",mustWork=TRU
 DATA_ROOT <- normalizePath(Sys.getenv("SGCB_DATA_ROOT",ROOT),winslash="/",mustWork=TRUE)
 ARGS <- commandArgs(trailingOnly=TRUE)
 LABEL <- ARGS[1]
-RECORD_ID <- Sys.getenv("SGCB_STUDY_RECORD_ID","0.5.9")
+RECORD_ID <- Sys.getenv("SGCB_STUDY_RECORD_ID","0.6.0")
 TYPE <- switch(LABEL,long_covid_2025="counts",masld_liver_2023="normalized",
     alzheimers_blood_2026="normalized")
 OUTPUT <- file.path(ROOT,"results",paste0("sgcb_",RECORD_ID,"_",LABEL))

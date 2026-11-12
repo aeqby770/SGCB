@@ -87,7 +87,7 @@ CONFIG = {"paths": {"root": Path(sys.argv[1])}, "threads": int(os.environ["SGCB_
 os.environ["OMP_NUM_THREADS"] = str(CONFIG["threads"])
 plt.rcParams.update(CONFIG["plot"])
 ROOT = CONFIG["paths"]["root"]
-RECORD_ID = os.environ.get("SGCB_STUDY_RECORD_ID", "0.5.9")
+RECORD_ID = os.environ.get("SGCB_STUDY_RECORD_ID", "0.6.0")
 R, F = ROOT / "results", ROOT / "manuscript" / "figures"
 FIG_STYLE=CONFIG["figure_palettes"]["3"]
 C=FIG_STYLE["colors"]

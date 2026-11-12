@@ -1,0 +1,42 @@
+CONFIG <- list(paths=list(old=commandArgs(trailingOnly=TRUE)[1],current=commandArgs(trailingOnly=TRUE)[2],output=commandArgs(trailingOnly=TRUE)[3]),threads=parallel::detectCores())
+Sys.setenv(OMP_NUM_THREADS=CONFIG$threads,OPENBLAS_NUM_THREADS=CONFIG$threads,MKL_NUM_THREADS=CONFIG$threads)
+.libPaths(c(Sys.getenv("SGCB_LIBRARY"),.libPaths()))
+library(SGCB)
+library(data.table)
+data.table::setDTthreads(CONFIG$threads)
+old_object <- readRDS(CONFIG$paths$old)
+current_object <- readRDS(CONFIG$paths$current)
+old <- as.data.table(old_object)
+current <- as.data.table(current_object)
+stopifnot(identical(names(old),names(current)),identical(old$gene_id,current$gene_id),!anyDuplicated(current$gene_id))
+numeric_fields <- names(old)[vapply(old,is.numeric,logical(1))]
+old_numeric <- as.matrix(old[,..numeric_fields])
+current_numeric <- as.matrix(current[,..numeric_fields])
+numeric_same <- (old_numeric==current_numeric | (is.na(old_numeric)&is.na(current_numeric))) & (is.nan(old_numeric)==is.nan(current_numeric))
+numeric_same[is.na(numeric_same)] <- FALSE
+finite_pairs <- is.finite(old_numeric)&is.finite(current_numeric)
+absolute_delta <- abs(old_numeric-current_numeric)
+absolute_delta[!finite_pairs] <- 0
+relative_delta <- absolute_delta/pmax(abs(old_numeric),abs(current_numeric),.Machine$double.eps)
+relative_delta[!finite_pairs] <- 0
+numeric_comparison <- data.table(field=numeric_fields,type="numeric",genes=nrow(current),changed=colSums(!numeric_same),missing_status_changed=colSums(is.na(old_numeric)!=is.na(current_numeric)),finite_status_changed=colSums(is.finite(old_numeric)!=is.finite(current_numeric)),max_abs_delta=matrixStats::colMaxs(absolute_delta),max_relative_delta=matrixStats::colMaxs(relative_delta))
+other_fields <- setdiff(names(old),numeric_fields)
+old_other <- as.matrix(old[,..other_fields])
+current_other <- as.matrix(current[,..other_fields])
+other_same <- old_other==current_other | (is.na(old_other)&is.na(current_other))
+other_same[is.na(other_same)] <- FALSE
+other_comparison <- data.table(field=other_fields,type="categorical_or_logical",genes=nrow(current),changed=colSums(!other_same),missing_status_changed=colSums(is.na(old_other)!=is.na(current_other)),finite_status_changed=NA_integer_,max_abs_delta=NA_real_,max_relative_delta=NA_real_)
+comparison <- rbindlist(list(numeric_comparison,other_comparison),use.names=TRUE)
+comparison[,dataset:=sub("[.]rds$","",basename(CONFIG$paths$current))]
+setcolorder(comparison,c("dataset",setdiff(names(comparison),"dataset")))
+numeric_index <- which(!numeric_same,arr.ind=TRUE)
+other_index <- which(!other_same,arr.ind=TRUE)
+changes <- rbindlist(list(data.table(gene_id=current$gene_id[numeric_index[,1]],field=numeric_fields[numeric_index[,2]],old_value=sprintf("%.17g",old_numeric[numeric_index]),current_value=sprintf("%.17g",current_numeric[numeric_index]),absolute_delta=absolute_delta[numeric_index]),data.table(gene_id=current$gene_id[other_index[,1]],field=other_fields[other_index[,2]],old_value=old_other[other_index],current_value=current_other[other_index],absolute_delta=NA_real_)),use.names=TRUE)
+changes[,dataset:=sub("[.]rds$","",basename(CONFIG$paths$current))]
+summary <- data.table(dataset=sub("[.]rds$","",basename(CONFIG$paths$current)),package_version=as.character(packageVersion("SGCB")),genes=nrow(current),n_ctrl=attr(current_object,"n_ctrl"),n_treat=attr(current_object,"n_treat"),old_input_id=attr(old_object,"input_id"),current_input_id=attr(current_object,"input_id"),input_identical=identical(attr(old_object,"input_id"),attr(current_object,"input_id")),samples_identical=identical(attr(old_object,"samples"),attr(current_object,"samples")),size_factors_identical=identical(attr(old_object,"size_factors"),attr(current_object,"size_factors")),normalization_identical=identical(attr(old_object,"normalization"),attr(current_object,"normalization")),offset_identical=identical(attr(old_object,"offset"),attr(current_object,"offset")),distribution_fits_identical=identical(attr(old_object,"distribution_fits"),attr(current_object,"distribution_fits")),mean_posterior_identical=identical(attr(old_object,"mean_posterior"),attr(current_object,"mean_posterior")),dv_posterior_identical=identical(attr(old_object,"population_posterior"),attr(current_object,"population_posterior")),mean_model_identical=identical(attr(old_object,"mean_model"),attr(current_object,"mean_model")),dv_model_identical=identical(attr(old_object,"population_model"),attr(current_object,"population_model")),column_types_identical=identical(lapply(old,class),lapply(current,class)),fields_compared=nrow(comparison),changed_fields=sum(comparison$changed>0L),changed_cells=sum(comparison$changed),dv_changed_fields=sum(comparison[grepl("^(dv_|DV)",field),changed]>0L),dv_changed_cells=sum(comparison[grepl("^(dv_|DV)",field),changed]),max_dv_absolute_delta=max(comparison[grepl("^dv_",field)&type=="numeric",max_abs_delta]),old_DV_available=sum(old$dv_inference_available),current_DV_available=sum(current$dv_inference_available),old_DV=sum(old$DV),current_DV=sum(current$DV),DV_decisions_changed=sum(old$DV!=current$DV),DV_availability_changed=sum(old$dv_inference_available!=current$dv_inference_available),old_DE=sum(old$DE),current_DE=sum(current$DE),DE_decisions_changed=sum(old$DE!=current$DE),channel_decisions_changed=sum(old$channel!=current$channel),elapsed_seconds=attr(current_object,"api_elapsed_seconds"))
+stopifnot(summary$input_identical,summary$samples_identical,summary$size_factors_identical,summary$normalization_identical,summary$offset_identical)
+fwrite(comparison,paste0(CONFIG$paths$output,"_field_comparison.tsv"),sep="\t")
+fwrite(changes,paste0(CONFIG$paths$output,"_changed_values.tsv"),sep="\t")
+fwrite(summary,paste0(CONFIG$paths$output,"_comparison_summary.tsv"),sep="\t")
+print(summary)
+stopifnot(summary$input_identical,summary$samples_identical,summary$size_factors_identical,summary$normalization_identical,summary$offset_identical)

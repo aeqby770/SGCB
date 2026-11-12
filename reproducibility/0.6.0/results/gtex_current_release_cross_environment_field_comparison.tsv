@@ -1,0 +1,51 @@
+dataset	field	type	genes	changed	missing_status_changed	finite_status_changed	max_abs_delta	max_relative_delta
+sgcb_0.6.0_readcount_null_1	baseMean	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	log2FoldChange	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	lfcSE	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	stat	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	pvalue	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	padj	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	log2FC_shrunk	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	mean_ctrl	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	mean_treat	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	ctrl_mu	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	ctrl_sigma	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	ctrl_Q	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	treat_mu	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	treat_sigma	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	treat_Q	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	ctrl_nonzero_fraction	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	treat_nonzero_fraction	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	ctrl_positive_n	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	treat_positive_n	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	fitted_mean_ctrl	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	fitted_mean_treat	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	dv_cv2_ctrl	numeric	28062	28054	0	0	22.3455491460128	0.0738528623985253
+sgcb_0.6.0_readcount_null_1	dv_cv2_treat	numeric	28062	28054	0	0	7.73451293049169	0.0415079868029463
+sgcb_0.6.0_readcount_null_1	dv_log2_cv2_ratio	numeric	28062	28058	0	0	0.0981431777677315	1.87360518878311
+sgcb_0.6.0_readcount_null_1	dv_se_log2_cv2	numeric	28062	28058	0	0	1.61006252515375	0.0479898843769201
+sgcb_0.6.0_readcount_null_1	dv_df	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	dv_ci_lower	numeric	28062	28027	0	0	9.02797181732128	0.324992273793677
+sgcb_0.6.0_readcount_null_1	dv_ci_upper	numeric	28062	28028	0	0	8.33880252127173	0.2423941160089
+sgcb_0.6.0_readcount_null_1	dv_pvalue	numeric	28062	18589	0	0	0.0164372566322873	0.0176552145246845
+sgcb_0.6.0_readcount_null_1	dv_padj	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	logspread_pvalue	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	logspread_padj	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	positive_log_variance_ctrl	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	positive_log_variance_treat	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	shape_Q_difference	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	shape_Q_se	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	shape_Q_pvalue	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	shape_Q_padj	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	DE_joint_q	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	DV_joint_q	numeric	28062	0	0	0	0	0
+sgcb_0.6.0_readcount_null_1	gene_id	categorical_or_logical	28062	0	0			
+sgcb_0.6.0_readcount_null_1	fit_converged	categorical_or_logical	28062	0	0			
+sgcb_0.6.0_readcount_null_1	fit_covariance_available	categorical_or_logical	28062	0	0			
+sgcb_0.6.0_readcount_null_1	de_inference_available	categorical_or_logical	28062	0	0			
+sgcb_0.6.0_readcount_null_1	dv_moments_finite	categorical_or_logical	28062	0	0			
+sgcb_0.6.0_readcount_null_1	dv_inference_available	categorical_or_logical	28062	0	0			
+sgcb_0.6.0_readcount_null_1	shape_inference_available	categorical_or_logical	28062	0	0			
+sgcb_0.6.0_readcount_null_1	DE	categorical_or_logical	28062	0	0			
+sgcb_0.6.0_readcount_null_1	DV	categorical_or_logical	28062	0	0			
+sgcb_0.6.0_readcount_null_1	channel	categorical_or_logical	28062	0	0			

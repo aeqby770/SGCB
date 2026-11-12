@@ -1,5 +1,5 @@
 ROOT <- normalizePath(Sys.getenv("SGCB_REVISION_ROOT"), winslash = "/", mustWork = TRUE)
-RECORD_ID <- Sys.getenv("SGCB_STUDY_RECORD_ID","0.5.9")
+RECORD_ID <- Sys.getenv("SGCB_STUDY_RECORD_ID","0.6.0")
 DATA_ROOT <- normalizePath(Sys.getenv("SGCB_DATA_ROOT",ROOT),winslash="/",mustWork=TRUE)
 PREFIX <- paste0("sgcb_",RECORD_ID,"_kirc")
 DATA <- file.path(DATA_ROOT, "data")

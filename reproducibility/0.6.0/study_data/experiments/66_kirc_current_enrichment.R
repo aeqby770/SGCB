@@ -1,7 +1,8 @@
 ROOT <- normalizePath(Sys.getenv("SGCB_REVISION_ROOT"),winslash="/",mustWork=TRUE)
 DATA_ROOT <- normalizePath(Sys.getenv("SGCB_DATA_ROOT",ROOT),winslash="/",mustWork=TRUE)
-RECORD_ID <- Sys.getenv("SGCB_STUDY_RECORD_ID","0.5.9")
+RECORD_ID <- Sys.getenv("SGCB_STUDY_RECORD_ID","0.6.0")
 PREFIX <- paste0("sgcb_",RECORD_ID,"_kirc")
+ANNOTATION_FILE <- file.path(DATA_ROOT,"data","biological_story_annotation_cache","kirc_enrichment_annotation.rds")
 THREADS <- as.integer(Sys.getenv("SGCB_THREADS",as.character(parallel::detectCores())))
 MIN_SET <- 10L
 MAX_SET <- 500L
@@ -14,40 +15,13 @@ source(file.path(ROOT,"development","00_current_setup.R"),encoding="UTF-8")
 primary <- readRDS(file.path(ROOT,"results",paste0(PREFIX,".rds")))
 verify_study_record(file.path(ROOT,"results",paste0(PREFIX,".rds")),attr(primary,"native_source_id"),RECORD_ID)
 results <- as.data.table(primary)
-go <- readRDS(file.path(DATA_ROOT,"data","biological_story_annotation_cache","go_term_maps_human.rds"))
-kegg <- readRDS(file.path(DATA_ROOT,"data","biological_story_annotation_cache","kegg_term_maps_hsa.rds"))
-mapping <- as.data.table(AnnotationDbi::select(org.Hs.eg.db::org.Hs.eg.db,
-    keys=intersect(results$gene_id,AnnotationDbi::keys(org.Hs.eg.db::org.Hs.eg.db,keytype="SYMBOL")),
-    columns="ENTREZID",keytype="SYMBOL"))
-setnames(mapping,"SYMBOL","gene_id")
-mapping <- unique(mapping[!is.na(ENTREZID)])
-mapping[,symbol_multiplicity:=uniqueN(ENTREZID),by=gene_id]
-mapping[,entrez_multiplicity:=uniqueN(gene_id),by=ENTREZID]
-mapping <- mapping[symbol_multiplicity==1 & entrez_multiplicity==1]
-
-# Propagate the cached direct GO annotations through the installed GO graph.
-bp <- as.data.table(AnnotationDbi::toTable(GO.db::GOBPANCESTOR))
-mf <- as.data.table(AnnotationDbi::toTable(GO.db::GOMFANCESTOR))
-cc <- as.data.table(AnnotationDbi::toTable(GO.db::GOCCANCESTOR))
-setnames(bp,c("GO","ancestor"))
-setnames(mf,c("GO","ancestor"))
-setnames(cc,c("GO","ancestor"))
-ancestors <- rbindlist(list(bp[,ONTOLOGY:="BP"],mf[,ONTOLOGY:="MF"],cc[,ONTOLOGY:="CC"]))
-direct <- as.data.table(go$term2gene)[ENTREZID %in% mapping$ENTREZID]
-inherited <- merge(direct,ancestors,by=c("GO","ONTOLOGY"),allow.cartesian=TRUE)
-go_links <- unique(rbindlist(list(direct[,.(ENTREZID,term=GO,collection=paste0("GO:",ONTOLOGY))],
-    inherited[!is.na(ancestor),.(ENTREZID,term=ancestor,collection=paste0("GO:",ONTOLOGY))])))
-go_names <- as.data.table(AnnotationDbi::select(GO.db::GO.db,keys=unique(go_links$term),
-    columns="TERM",keytype="GOID"))[,.(term=GOID,description=TERM)]
-reactome_links <- as.data.table(AnnotationDbi::toTable(reactome.db::reactomePATHID2EXTID))
-reactome_names <- as.data.table(AnnotationDbi::toTable(reactome.db::reactomePATHID2NAME))
-terms <- unique(rbindlist(list(go_links,
-    as.data.table(kegg$term2gene)[,.(ENTREZID,term=pathway_id,collection="KEGG")],
-    reactome_links[grepl("^R-HSA-",DB_ID),.(ENTREZID=gene_id,term=DB_ID,collection="Reactome")])))
-term_names <- unique(rbindlist(list(go_names,
-    as.data.table(kegg$term2name)[,.(term=pathway_id,description=pathway_name)],
-    reactome_names[grepl("^R-HSA-",DB_ID),.(term=DB_ID,
-        description=sub("^Homo sapiens: ","",path_name))])))
+# Resolved study annotations preserve the original gene universe and ontology.
+annotation <- readRDS(ANNOTATION_FILE)
+stopifnot(identical(attr(primary,"input_id"),annotation$input_id),
+    setequal(results$gene_id,annotation$gene_ids))
+mapping <- as.data.table(annotation$mapping)
+terms <- as.data.table(annotation$terms)
+term_names <- as.data.table(annotation$term_names)
 
 # Each background contains all genes eligible for the relevant primary test.
 background <- rbindlist(list(
@@ -76,6 +50,8 @@ fwrite(enrichment,file.path(ROOT,"results",paste0(PREFIX,"_enrichment.csv")))
 fwrite(summary,file.path(ROOT,"results",paste0(PREFIX,"_enrichment_summary.csv")))
 fwrite(mapped,file.path(ROOT,"results",paste0(PREFIX,"_enrichment_gene_sets.csv")))
 fwrite(mapping_summary,file.path(ROOT,"results",paste0(PREFIX,"_enrichment_mapping.csv")))
+annotation_versions <- as.data.table(annotation$versions)
+fwrite(annotation_versions,file.path(ROOT,"results",paste0(PREFIX,"_annotation_versions.csv")))
 print(mapping_summary)
 print(summary)
 print(enrichment[qvalue<ALPHA,head(.SD,4),by=.(category,collection)][,

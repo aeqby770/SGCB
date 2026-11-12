@@ -6,7 +6,7 @@ Sys.setenv(OMP_NUM_THREADS=THREADS,OPENBLAS_NUM_THREADS=THREADS,MKL_NUM_THREADS=
 library(data.table)
 setDTthreads(THREADS)
 source(file.path(ROOT,"development/00_current_setup.R"),encoding="UTF-8")
-RECORD_ID <- Sys.getenv("SGCB_STUDY_RECORD_ID","0.5.9")
+RECORD_ID <- Sys.getenv("SGCB_STUDY_RECORD_ID","0.6.0")
 LABELS <- paste0("sgcb_",RECORD_ID,"_readcount_null_",1:10)
 LABELS[3] <- paste0(LABELS[3],ifelse(RECORD_ID=="0.5.9","_streamed",""))
 PATHS <- file.path(RESULTS,paste0(LABELS,".rds"))

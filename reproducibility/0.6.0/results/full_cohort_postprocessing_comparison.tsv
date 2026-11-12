@@ -1,0 +1,78 @@
+file	old_rows	current_rows	numeric_changed_cells	max_numeric_absolute_delta	numeric_changed_fields	shared_fields_exact_after_record_id_normalization
+sgcb_0.6.0_kirc_alternative_scores.csv	533	533	0	0.0		
+sgcb_0.6.0_kirc_alternative_scores_PH.csv	8	8	0	0.0		
+sgcb_0.6.0_kirc_alternative_scores_survival.csv	2	2	0	0.0		
+sgcb_0.6.0_kirc_covariate_genes.csv	20031	20031	0	0.0		
+sgcb_0.6.0_kirc_covariate_summary.csv	1	1	0	0.0		
+sgcb_0.6.0_kirc_distribution_examples.csv	1599	1599	0	0.0		
+sgcb_0.6.0_kirc_distribution_stability.csv	17973	17973	0	0.0		
+sgcb_0.6.0_kirc_distribution_stability_summary.csv	4	4	0	0.0		
+sgcb_0.6.0_kirc_enrichment.csv	30333	30333	0	0.0		
+sgcb_0.6.0_kirc_enrichment_gene_sets.csv	50998	50998	0	0.0		
+sgcb_0.6.0_kirc_enrichment_mapping.csv	3	3	0	0.0		
+sgcb_0.6.0_kirc_enrichment_summary.csv	15	15	0	0.0		
+sgcb_0.6.0_kirc_example_features.csv	3	3	0	0.0		
+sgcb_0.6.0_kirc_external_alternative_scores.csv	101	101	0	0.0		
+sgcb_0.6.0_kirc_external_alternative_scores_PH.csv	10	10	0	0.0		
+sgcb_0.6.0_kirc_external_alternative_scores_survival.csv	2	2	0	0.0		
+sgcb_0.6.0_kirc_external_coverage.csv	3	3	0	0.0		
+sgcb_0.6.0_kirc_external_proportional_hazards.csv	15	15	0	0.0		
+sgcb_0.6.0_kirc_external_scores.csv	101	101	0	0.0		
+sgcb_0.6.0_kirc_external_survival.csv	6	6	0	0.0		
+sgcb_0.6.0_kirc_figure_examples.csv	417	417	0	0.0		
+sgcb_0.6.0_kirc_fits.csv	20031	20031	0	0.0		
+sgcb_0.6.0_kirc_genes.csv	20031	20031	0	0.0		
+sgcb_0.6.0_kirc_heldout_KM.csv	375	375	0	0.0		
+sgcb_0.6.0_kirc_heldout_KM_test.csv	1	1	0	0.0		
+sgcb_0.6.0_kirc_heldout_proportional_hazards.csv	12	12	0	0.0		
+sgcb_0.6.0_kirc_heldout_survival.csv	9	9	0	0.0		
+sgcb_0.6.0_kirc_locked_signature_genes.csv	15567	15567	0	0.0		
+sgcb_0.6.0_kirc_patient_scores.csv	533	533	0	0.0		
+sgcb_0.6.0_kirc_signature_parameters.csv	3	3	0	0.0		
+sgcb_0.6.0_kirc_stability_coverage.csv	1	1	0	0.0		
+sgcb_0.6.0_kirc_stability_sample_mapping.csv	139	139	0	0.0		
+sgcb_0.6.0_kirc_summary.csv	1	1	4	1630674944.0	elapsed_seconds,cpu_seconds,process_peak_working_set_bytes,process_peak_pagefile_bytes	
+sgcb_0.6.0_kirc_timing.csv	6	6	5	422.3299999999999	elapsed_seconds	
+sgcb_0.6.0_kirc_validation_summary.csv	1	1	0	0.0		
+sgcb_0.6.0_kirc_variability_discovery_score_parameters.csv	9407	9407	0	0.0		
+sgcb_0.6.0_kirc_variability_external_patient_scores.csv	99	99	0	0.0		
+sgcb_0.6.0_kirc_variability_external_survival.csv	2	2	0	0.0		
+sgcb_0.6.0_kirc_variability_heldout_survival.csv	4	4	0	0.0		
+sgcb_0.6.0_kirc_variability_tcga_patient_scores.csv	533	533	0	0.0		
+sgcb_0.6.0_masld_liver_2023_biological_results.csv	19787	19787	0	0.0		True
+sgcb_0.6.0_masld_liver_2023_comparison_summary.csv	1	1	0	0.0		True
+sgcb_0.6.0_masld_liver_2023_covariate_summary.csv	3	3	0	0.0		True
+sgcb_0.6.0_masld_liver_2023_enrichment.csv	57576	57576	0	0.0		True
+sgcb_0.6.0_masld_liver_2023_enrichment_gene_sets.csv	98500	98500	0	0.0		True
+sgcb_0.6.0_masld_liver_2023_enrichment_mapping.csv	6	6	0	0.0		True
+sgcb_0.6.0_masld_liver_2023_enrichment_summary.csv	30	30	0	0.0		True
+sgcb_0.6.0_masld_liver_2023_example_effects.csv	24	24	0	0.0		True
+sgcb_0.6.0_masld_liver_2023_example_empirical.csv	12	12	0	0.0		True
+sgcb_0.6.0_masld_liver_2023_example_observations.csv	2208	2208	0	0.0		True
+sgcb_0.6.0_masld_liver_2023_example_summary.csv	6	6	0	0.0		True
+sgcb_0.6.0_masld_liver_2023_fits.csv	19787	19787	0	0.0		True
+sgcb_0.6.0_masld_liver_2023_genes.csv	19787	19787	0	0.0		True
+sgcb_0.6.0_masld_liver_2023_process_runtime.csv	1	1	2	192512.0	elapsed_seconds,peak_working_set_bytes	False
+sgcb_0.6.0_masld_liver_2023_summary.csv	1	1	4	1074647040.0	elapsed_seconds,cpu_seconds,process_peak_working_set_bytes,process_peak_pagefile_bytes	False
+sgcb_0.6.0_masld_liver_2023_timing.csv	6	6	6	454.3200000000006	elapsed_seconds	False
+sgcb_0.6.0_sle_classical_monocytes_2021_biological_results.csv	23972	23972	0	0.0		True
+sgcb_0.6.0_sle_classical_monocytes_2021_channel_genes.csv	94	94	0	0.0		True
+sgcb_0.6.0_sle_classical_monocytes_2021_channel_summary.csv	3	3	0	0.0		True
+sgcb_0.6.0_sle_classical_monocytes_2021_comparison_summary.csv	1	1	0	0.0		True
+sgcb_0.6.0_sle_classical_monocytes_2021_covariate_genes.csv	47944	47944	0	0.0		True
+sgcb_0.6.0_sle_classical_monocytes_2021_covariate_samples.csv	88	88	0	0.0		True
+sgcb_0.6.0_sle_classical_monocytes_2021_covariate_summary.csv	2	2	0	0.0		True
+sgcb_0.6.0_sle_classical_monocytes_2021_enrichment.csv	72239	72239	0	0.0		True
+sgcb_0.6.0_sle_classical_monocytes_2021_enrichment_gene_sets.csv	131296	131296	0	0.0		True
+sgcb_0.6.0_sle_classical_monocytes_2021_enrichment_mapping.csv	8	8	0	0.0		True
+sgcb_0.6.0_sle_classical_monocytes_2021_enrichment_summary.csv	40	40	0	0.0		True
+sgcb_0.6.0_sle_classical_monocytes_2021_example_effects.csv	21	21	0	0.0		True
+sgcb_0.6.0_sle_classical_monocytes_2021_example_empirical.csv	14	14	0	0.0		True
+sgcb_0.6.0_sle_classical_monocytes_2021_example_observations.csv	616	616	0	0.0		True
+sgcb_0.6.0_sle_classical_monocytes_2021_example_summary.csv	7	7	0	0.0		True
+sgcb_0.6.0_sle_classical_monocytes_2021_fits.csv	23972	23972	0	0.0		True
+sgcb_0.6.0_sle_classical_monocytes_2021_genes.csv	23972	23972	0	0.0		True
+sgcb_0.6.0_sle_classical_monocytes_2021_interferon_terms.csv	284	284	0	0.0		True
+sgcb_0.6.0_sle_classical_monocytes_2021_process_runtime.csv	1	1	2	2789376.0	elapsed_seconds,peak_working_set_bytes	False
+sgcb_0.6.0_sle_classical_monocytes_2021_summary.csv	1	1	4	1687220224.0	elapsed_seconds,cpu_seconds,process_peak_working_set_bytes,process_peak_pagefile_bytes	False
+sgcb_0.6.0_sle_classical_monocytes_2021_timing.csv	6	6	6	220.16999999999985	elapsed_seconds	False

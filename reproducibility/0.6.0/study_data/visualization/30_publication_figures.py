@@ -135,6 +135,7 @@ CONFIG = {"paths": {"root": Path(sys.argv[1]),
            'soft': '#D6E4ED'}},
     "hexbin": {"gridsize": 36, "mincnt": 1, "linewidths": 0, "rasterized": False},
     "designs": ["10:10", "10:50", "50:50"], "alpha": .05,
+    "benchmark_record_id": "0.5.9",
     "mean_record_id": os.environ.get("SGCB_MEAN_RECORD_ID", "0.5.7"),
     "distribution": {"bandwidth_adjust": .85, "width": .72, "point_size": .70},
     "kirc_enrichment_BP_terms": 3,
@@ -155,7 +156,7 @@ CONFIG = {"paths": {"root": Path(sys.argv[1]),
 os.environ["OMP_NUM_THREADS"] = str(CONFIG["threads"])
 plt.rcParams.update(CONFIG["plot"])
 ROOT = CONFIG["paths"]["root"]
-RECORD_ID = os.environ.get("SGCB_STUDY_RECORD_ID", "0.5.9")
+RECORD_ID = os.environ.get("SGCB_STUDY_RECORD_ID", "0.6.0")
 R, F = ROOT / "results", ROOT / "manuscript" / "figures"
 F.mkdir(parents=True, exist_ok=True)
 INK=CONFIG["detail"]["ink"]
@@ -199,7 +200,7 @@ population_family_metadata = population_family_inputs[["fit","family","panel"]]
 # The archived fits below provide historical schema and separate sensitivity records.
 current_inputs = population_family_inputs.loc[
     population_family_inputs.family.eq("GG"), ["panel", "sample_design"]].copy()
-current_inputs["prefix"] = (str(R) + f"/sgcb_{RECORD_ID}_" +
+current_inputs["prefix"] = (str(R) + f"/sgcb_{CONFIG['benchmark_record_id']}_" +
     current_inputs.panel.map({"Positive": "channel", "Observed zeros": "zero"}) +
     "_n" + current_inputs.sample_design)
 api_metrics = pd.concat(map(pd.read_csv, current_inputs.prefix + "_metrics.csv"),
@@ -250,7 +251,7 @@ final_genes["method"] = "EB-GG-paired-population"
 final_genes["family"] = "GG"
 final_genes["panel"] = final_genes.panel.map({"channel": "Positive", "zero": "Observed zeros"})
 # Kernel-family comparisons use matched fits from the same package version.
-matched_prefixes = (str(R) + f"/cv_matched_families_{RECORD_ID}_" +
+matched_prefixes = (str(R) + f"/cv_matched_families_{CONFIG['benchmark_record_id']}_" +
     current_inputs.panel.map({"Positive": "channel", "Observed zeros": "zero"}) +
     "_n" + current_inputs.sample_design)
 matched_metadata = current_inputs[["panel", "sample_design"]].copy()
@@ -1100,8 +1101,8 @@ MEAN_COLOR,DV_COLOR,JOINT_COLOR=FIG_STYLE["colors"]["DE"],FIG_STYLE["colors"]["D
 NORMAL,TUMOR,GREY=FIG_STYLE["colors"]["normal"],FIG_STYLE["colors"]["tumor"],FIG_STYLE["colors"]["reference"]
 CHANNEL_COLORS={"DE_only":MEAN_COLOR,"DV_only":DV_COLOR,"DE_and_DV":JOINT_COLOR,"neither":FIG_STYLE["colors"]["other"]}
 
-# Figure S5 reports the final public API, fixed-panel scaling and actual memory.
-resource_labels = pd.Index("sgcb_"+RECORD_ID+"_"+pd.Series(CONFIG["resource_datasets"]),name="result_label")
+# Figure S5 retains original benchmark timing and memory measurements on one host.
+resource_labels = pd.Index("sgcb_"+CONFIG["benchmark_record_id"]+"_"+pd.Series(CONFIG["resource_datasets"]),name="result_label")
 resources = pd.concat(map(pd.read_csv,str(R)+"/"+resource_labels+"_summary.csv"),
     keys=resource_labels,names=["result_label","record"]).reset_index().drop(columns="record")
 resources = resources.rename(columns={"elapsed_seconds":"api_seconds","cpu_seconds":"api_cpu_seconds",
@@ -1113,7 +1114,7 @@ resources = resources.merge(process_resources[["stage","elapsed_seconds","peak_w
     "threads_per_process","execution_outcome"]].rename(columns={"stage":"result_label",
     "elapsed_seconds":"process_seconds","peak_working_set_bytes":"process_peak_working_set_bytes"}),
     on="result_label",how="left",validate="one_to_one")
-resources["dataset"] = resources.result_label.str.removeprefix("sgcb_"+RECORD_ID+"_")
+resources["dataset"] = resources.result_label.str.removeprefix("sgcb_"+CONFIG["benchmark_record_id"]+"_")
 resources["api_peak_GiB"] = resources.api_peak_working_set_bytes/1024**3
 resources["process_peak_GiB"] = resources.process_peak_working_set_bytes/1024**3
 resources["api_minutes"] = resources.api_seconds/60

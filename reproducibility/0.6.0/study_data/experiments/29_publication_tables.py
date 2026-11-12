@@ -15,7 +15,7 @@ CONFIG = {"paths": {"root": Path(sys.argv[1]),
 os.environ["OMP_NUM_THREADS"] = str(CONFIG["threads"])
 plt.rcParams.update(CONFIG["plot"])
 ROOT = CONFIG["paths"]["root"]
-RECORD_ID = os.environ.get("SGCB_STUDY_RECORD_ID", "0.5.9")
+RECORD_ID = os.environ.get("SGCB_STUDY_RECORD_ID", "0.6.0")
 R = ROOT / "results"
 OUT = ROOT / "manuscript"
 

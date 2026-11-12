@@ -3,7 +3,7 @@ DATA_ROOT <- normalizePath(Sys.getenv("SGCB_DATA_ROOT",ROOT),winslash="/",mustWo
 ARGS <- commandArgs(trailingOnly=TRUE)
 LABEL <- ARGS[1]
 STATE_SUFFIX <- c(ARGS[-1L],"_refined_continued")[1L]
-RECORD_ID <- Sys.getenv("SGCB_STUDY_RECORD_ID","0.5.9")
+RECORD_ID <- Sys.getenv("SGCB_STUDY_RECORD_ID","0.6.0")
 CURRENT_PREFIX <- file.path(DATA_ROOT,"results",paste0("current_",LABEL))
 analysis <- readRDS(paste0(CURRENT_PREFIX,"_analysis_data.rds"))
 group <- as.integer(analysis$group)-1L
