@@ -7,17 +7,21 @@ Sys.setenv(OMP_NUM_THREADS=CONFIG$threads,OPENBLAS_NUM_THREADS=CONFIG$threads,
 library(data.table)
 setDTthreads(CONFIG$threads)
 source(file.path(ROOT,"development/00_current_setup.R"),encoding="UTF-8")
-VERSION <- as.character(packageVersion("SGCB"))
+RECORD_ID <- Sys.getenv("SGCB_STUDY_RECORD_ID",as.character(packageVersion("SGCB")))
 LABEL <- paste0(CONFIG$panel,"_n",CONFIG$design)
-PREFIX <- file.path(CONFIG$paths$results,paste0("cv_matched_families_",VERSION,"_",LABEL))
-reference <- readRDS(file.path(CONFIG$paths$results,paste0("sgcb_",VERSION,"_",LABEL,".rds")))
+PREFIX <- file.path(CONFIG$paths$results,paste0("cv_matched_families_",RECORD_ID,"_",LABEL))
+reference_path <- file.path(CONFIG$paths$results,paste0("sgcb_",RECORD_ID,"_",LABEL,".rds"))
+reference <- readRDS(reference_path)
+verify_study_record(reference_path,attr(reference,"native_source_id"),RECORD_ID)
 
-dataset <- readRDS(attr(reference,"input_file"))
+INPUT <- file.path(ROOT,"data",switch(CONFIG$panel,channel="channel_simulation.rds",zero="zero_calibration.rds"))
+stopifnot(identical(attr(reference,"input_id"),unname(tools::md5sum(INPUT))))
+dataset <- readRDS(INPUT)
 samples <- attr(reference,"samples")
 x <- sweep(dataset$abundance[reference$gene_id,samples$sample,drop=FALSE],
     2L,attr(reference,"size_factors"),"/")
 group <- as.integer(factor(samples$group))-1L
-evaluation <- readRDS(file.path(CONFIG$paths$results,paste0("sgcb_",VERSION,"_",LABEL,"_evaluation.rds")))
+evaluation <- readRDS(file.path(CONFIG$paths$results,paste0("sgcb_",RECORD_ID,"_",LABEL,"_evaluation.rds")))
 truth <- copy(evaluation$genes[endpoint=="DV",.(gene_id,scenario,truth,truth_finite,truth_effect)])
 stopifnot(identical(truth$gene_id,reference$gene_id))
 gamma_time <- system.time(gamma <- SGCB:::.populationGG(x,group,CONFIG$threads,
@@ -47,11 +51,11 @@ metrics <- genes[,.(features=.N,available=sum(available),alternatives=sum(truth 
 metrics[,c("power","FDP"):=list(TP/alternatives,FP/pmax(TP+FP,1))]
 prior_time <- attr(reference,"population_timing")
 metrics[,seconds:=c(unname(prior_time["total"]),gamma_time[["elapsed"]],lognormal_time[["elapsed"]])]
-metrics[,timing_source:=c("current public API DV component","current Gamma DV refit","current lognormal DV refit")]
+metrics[,timing_source:=c("stored GG API DV component","current Gamma DV refit","current lognormal DV refit")]
 saveRDS(list(genes=genes,metrics=metrics,gamma=gamma,lognormal=lognormal,
     gene_ids=reference$gene_id,samples=samples,size_factors=attr(reference,"size_factors"),
     source_id=SOURCE_ID,gg_source_id=attr(reference,"native_source_id"),
-    gg_input=file.path(CONFIG$paths$results,paste0("sgcb_",VERSION,"_",LABEL,".rds")),config=CONFIG),paste0(PREFIX,".rds"))
+    gg_input=file.path(CONFIG$paths$results,paste0("sgcb_",RECORD_ID,"_",LABEL,".rds")),config=CONFIG),paste0(PREFIX,".rds"))
 fwrite(genes,paste0(PREFIX,"_genes.csv"))
 fwrite(metrics,paste0(PREFIX,"_metrics.csv"))
 print(metrics)

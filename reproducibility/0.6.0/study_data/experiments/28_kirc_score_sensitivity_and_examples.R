@@ -16,8 +16,8 @@ source(file.path(ROOT,"development","00_current_setup.R"),encoding="UTF-8")
 fit <- readRDS(file.path(RESULTS, paste0(PREFIX,"_validation_models.rds")))
 cohort <- fread(file.path(RESULTS, paste0(PREFIX,"_patient_scores.csv")))
 primary <- readRDS(file.path(RESULTS,paste0(PREFIX,".rds")))
-stopifnot(identical(attr(primary,"native_source_id"),SOURCE_ID),identical(fit$run_id,PREFIX),
-    identical(fit$source_id,SOURCE_ID))
+verify_study_record(file.path(RESULTS,paste0(PREFIX,".rds")),attr(primary,"native_source_id"),RECORD_ID)
+stopifnot(identical(fit$run_id,PREFIX),identical(fit$source_id,attr(primary,"native_source_id")))
 discovery <- as.data.table(primary)
 ds <- readRDS(file.path(DATA, "tcga_kirc_cache", "tcga_kirc.rds"))
 expr <- ds$expression[, substr(colnames(ds$expression), 14, 15) == "01", drop = FALSE]
@@ -56,7 +56,7 @@ fwrite(rbindlist(list(
 )), file.path(RESULTS, paste0(PREFIX,"_alternative_scores_PH.csv")))
 
 external <- readRDS(file.path(RESULTS, paste0(PREFIX,"_external_validation.rds")))
-stopifnot(identical(external$run_id,PREFIX),identical(external$source_id,SOURCE_ID))
+stopifnot(identical(external$run_id,PREFIX),identical(external$source_id,attr(primary,"native_source_id")))
 external_cohort <- fread(file.path(RESULTS, paste0(PREFIX,"_external_scores.csv")))
 external_genes <- external$signatures[channel == "DV_only", gene_id]
 external_x <- external$expression[external_genes, , drop = FALSE]

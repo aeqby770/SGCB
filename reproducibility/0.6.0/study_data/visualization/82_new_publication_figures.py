@@ -87,7 +87,7 @@ CONFIG = {"paths": {"root": Path(sys.argv[1])}, "threads": int(os.environ["SGCB_
 os.environ["OMP_NUM_THREADS"] = str(CONFIG["threads"])
 plt.rcParams.update(CONFIG["plot"])
 ROOT = CONFIG["paths"]["root"]
-VERSION = (ROOT / "software" / "SGCB" / "DESCRIPTION").read_text(encoding="utf-8").split("Version: ",1)[1].splitlines()[0]
+RECORD_ID = os.environ.get("SGCB_STUDY_RECORD_ID", "0.5.9")
 R, F = ROOT / "results", ROOT / "manuscript" / "figures"
 FIG_STYLE=CONFIG["figure_palettes"]["3"]
 C=FIG_STYLE["colors"]
@@ -265,8 +265,8 @@ C=FIG_STYLE["colors"]
 COHORT_COLORS={0:FIG_STYLE["cohorts"]["normal"],1:FIG_STYLE["cohorts"]["tumor"]}
 
 # The fixed independent disease examples use the same public API and all profiles.
-sle = pd.read_csv(R / f"sgcb_{VERSION}_sle_classical_monocytes_2021_biological_results.csv")
-liver = pd.read_csv(R / f"sgcb_{VERSION}_masld_liver_2023_biological_results.csv")
+sle = pd.read_csv(R / f"sgcb_{RECORD_ID}_sle_classical_monocytes_2021_biological_results.csv")
+liver = pd.read_csv(R / f"sgcb_{RECORD_ID}_masld_liver_2023_biological_results.csv")
 sle = sle.loc[np.isfinite(sle.population_effect) & sle.population_available].copy()
 liver = liver.loc[np.isfinite(liver.population_effect) & liver.population_available].copy()
 sle["display_class"] = np.select([sle.population_DV & sle.DE,sle.population_DV,sle.DE],[3,2,1],default=0)
@@ -274,10 +274,10 @@ liver["display_class"] = np.select([liver.population_DV & liver.DE,liver.populat
 sle = sle.sort_values("display_class")
 liver = liver.sort_values("display_class")
 palette = np.array([C["other"],C["DE"],C["DV"],C["both"]])
-obs_sle = pd.read_csv(R / f"sgcb_{VERSION}_sle_classical_monocytes_2021_example_observations.csv")
-obs_liver = pd.read_csv(R / f"sgcb_{VERSION}_masld_liver_2023_example_observations.csv")
-fx_sle = pd.read_csv(R / f"sgcb_{VERSION}_sle_classical_monocytes_2021_example_effects.csv")
-fx_liver = pd.read_csv(R / f"sgcb_{VERSION}_masld_liver_2023_example_effects.csv")
+obs_sle = pd.read_csv(R / f"sgcb_{RECORD_ID}_sle_classical_monocytes_2021_example_observations.csv")
+obs_liver = pd.read_csv(R / f"sgcb_{RECORD_ID}_masld_liver_2023_example_observations.csv")
+fx_sle = pd.read_csv(R / f"sgcb_{RECORD_ID}_sle_classical_monocytes_2021_example_effects.csv")
+fx_liver = pd.read_csv(R / f"sgcb_{RECORD_ID}_masld_liver_2023_example_effects.csv")
 fig,ax = plt.subplots(3,2,figsize=(7.25,7.2),layout="constrained",
     gridspec_kw={"height_ratios":[1.1,1.05,.70]})
 sle_colors=to_rgba_array(palette[sle.display_class])

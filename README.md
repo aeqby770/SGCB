@@ -37,7 +37,7 @@ packageVersion("SGCB")  # 0.6.0
 help("sgcbDE", package="SGCB")
 ```
 
-The historical public v0.5.9 assets reproduce R1. The 0.6.0 installers are supplied with `SGCB_0.6.0_reproducibility.zip`; use its local files for the current implementation.
+The current installers and analysis code are supplied with `SGCB_0.6.0_reproducibility.zip`; use its local files for the current implementation.
 
 ## Two-group analysis
 

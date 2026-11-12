@@ -24,7 +24,7 @@ mapped <- merge(raw[, c("REF", "refseq", samples), with = FALSE], annotation,
 expr_sum <- rowsum(as.matrix(mapped[, ..samples]), group = mapped$SYMBOL, reorder = TRUE)
 expr <- expr_sum / as.numeric(table(mapped$SYMBOL)[rownames(expr_sum)])
 primary <- readRDS(file.path(RESULTS,paste0(PREFIX,".rds")))
-stopifnot(identical(attr(primary,"native_source_id"),SOURCE_ID))
+verify_study_record(file.path(RESULTS,paste0(PREFIX,".rds")),attr(primary,"native_source_id"),RECORD_ID)
 res <- as.data.table(primary)
 sd_external <- matrixStats::rowSds(expr)
 genes <- intersect(res[channel %in% CHANNELS, gene_id], rownames(expr)[sd_external > 0])
@@ -77,7 +77,8 @@ ph <- rbindlist(list(
   as.data.table(cox.zph(both_a)$table, keep.rownames = "term")[, signature := "DE_and_DV"]
 ))
 fwrite(ph, file.path(RESULTS, paste0(PREFIX,"_external_proportional_hazards.csv")))
-saveRDS(list(run_id=PREFIX,source_id=SOURCE_ID,
+saveRDS(list(run_id=PREFIX,source_id=attr(primary,"native_source_id"),
+    analysis_source_id=SOURCE_ID,analysis_package_version=as.character(packageVersion("SGCB")),
              expression = expr, mapping = annotation, signatures = data.table(gene_id = genes, channel = strata),
              models = list(de_u, dv_u, both_u, de_a, dv_a, both_a)),
         file.path(RESULTS, paste0(PREFIX,"_external_validation.rds")))

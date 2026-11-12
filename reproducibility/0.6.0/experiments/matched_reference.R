@@ -6,6 +6,8 @@ data.table::setDTthreads(threads);library(SGCB,lib.loc=lib)
 ref <- file.path(root,"study_data");out <- file.path(root,"results","protected")
 dir.create(out,recursive=TRUE,showWarnings=FALSE)
 match_one <- function(panel) {
+    complete <- file.path(out,sprintf("%s_%s_t%02d",panel,edition,threads))
+    if (all(file.exists(paste0(complete,c(".rds",".tsv"))))) return(invisible(panel))
     old <- readRDS(file.path(ref,"results",paste0("sgcb_0.5.9_",panel,".rds")))
     kind <- substr(panel,1,regexpr("_",panel)-1); size <- as.integer(strsplit(sub(".*_n","",panel),"_")[[1]])
     data <- readRDS(file.path(ref,"data",if(kind=="channel")"channel_simulation.rds" else "zero_calibration.rds"))

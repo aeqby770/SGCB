@@ -6,11 +6,11 @@ Sys.setenv(OMP_NUM_THREADS=THREADS,OPENBLAS_NUM_THREADS=THREADS,MKL_NUM_THREADS=
 library(data.table)
 setDTthreads(THREADS)
 source(file.path(ROOT,"development/00_current_setup.R"),encoding="UTF-8")
-VERSION <- as.character(packageVersion("SGCB"))
-LABELS <- paste0("sgcb_",VERSION,"_readcount_null_",1:10)
-LABELS[3] <- paste0(LABELS[3],"_streamed")
+RECORD_ID <- Sys.getenv("SGCB_STUDY_RECORD_ID","0.5.9")
+LABELS <- paste0("sgcb_",RECORD_ID,"_readcount_null_",1:10)
+LABELS[3] <- paste0(LABELS[3],ifelse(RECORD_ID=="0.5.9","_streamed",""))
 PATHS <- file.path(RESULTS,paste0(LABELS,".rds"))
-OUTPUT <- file.path(RESULTS,paste0("sgcb_",VERSION,"_readcount_null"))
+OUTPUT <- file.path(RESULTS,paste0("sgcb_",RECORD_ID,"_readcount_null"))
 
 # Read the complete current API results; split 3 retains its actual streamed run.
 runs <- list(

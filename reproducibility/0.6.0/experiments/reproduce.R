@@ -5,7 +5,7 @@ setwd(root);Sys.setenv(SGCB_R2_ROOT=root,SGCB_THREADS=3,OMP_NUM_THREADS=3,OPENBL
 dir.create(file.path(root,"logs"),showWarnings=FALSE)
 dir.create(file.path(root,"results"),showWarnings=FALSE)
 workspace_tmp<-file.path(root,"tmp");dir.create(workspace_tmp,showWarnings=FALSE)
-Sys.setenv(TMP=workspace_tmp,TEMP=workspace_tmp,TMPDIR=workspace_tmp)
+# Keep the system R temporary directory; workspace paths may contain spaces.
 rscript<-file.path(R.home("bin"),if(.Platform$OS.type=="windows")"Rscript.exe" else "Rscript")
 run<-function(script,args=character()) {
     log<-file.path(root,"logs",paste0("reproduce_",tools::file_path_sans_ext(basename(script)),".log"))

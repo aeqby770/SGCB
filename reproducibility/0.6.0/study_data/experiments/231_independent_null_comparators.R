@@ -2,7 +2,7 @@ ROOT <- normalizePath(Sys.getenv("SGCB_REVISION_ROOT"),winslash="/")
 ARGS <- commandArgs(trailingOnly=TRUE)
 CONFIG <- list(split=as.integer(ARGS[1]),method=ARGS[2],alpha=.05,
     threads=as.integer(Sys.getenv("SGCB_THREADS")),
-    paths=list(data_root=normalizePath(Sys.getenv("SGCB_DATA_ROOT"),winslash="/"),
+    paths=list(data_root=normalizePath(Sys.getenv("SGCB_DATA_ROOT",ROOT),winslash="/"),
         output=file.path(ROOT,"results")))
 Sys.setenv(OMP_NUM_THREADS=CONFIG$threads,OPENBLAS_NUM_THREADS=CONFIG$threads,
     MKL_NUM_THREADS=CONFIG$threads)

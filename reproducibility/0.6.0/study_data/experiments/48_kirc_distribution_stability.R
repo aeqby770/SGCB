@@ -11,8 +11,7 @@ library(data.table)
 source(file.path(ROOT,"development","00_current_setup.R"),encoding="UTF-8")
 
 res <- readRDS(file.path(ROOT,"results",paste0(PREFIX,".rds")))
-stopifnot(identical(c(attr(res,"mean_inference_source_id"),
-    attr(res,"native_source_id"))[1],SOURCE_ID))
+verify_study_record(file.path(ROOT,"results",paste0(PREFIX,".rds")),attr(res,"native_source_id"),RECORD_ID)
 # Reuse the covariate estimates only for the same input and normalization.
 reference <- readRDS(file.path(DATA_ROOT,"results","population_kirc.rds"))
 covariate_design <- readRDS(file.path(DATA_ROOT,"results","covariate_CV2_kirc_discovery_design.rds"))

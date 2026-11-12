@@ -20,8 +20,7 @@ Rcpp::sourceCpp(file.path(ROOT,"development","57_cv_moment_regression.cpp"),
 
 ds <- readRDS(INPUT)
 primary <- readRDS(paste0(PREFIX,".rds"))
-stopifnot(
-    identical(attr(primary,"native_source_id"),SOURCE_ID))
+verify_study_record(paste0(PREFIX,".rds"),attr(primary,"native_source_id"),RECORD_ID)
 input <- switch(TYPE,counts=as.matrix(ds$counts),normalized=as.matrix(ds$abundance))
 input <- input[primary$gene_id,,drop=FALSE]
 group <- factor(ds$group)
@@ -34,7 +33,7 @@ stopifnot(identical(meta$sample,colnames(x)),!anyDuplicated(meta$donor),
     identical(annotation$gene_id,primary$gene_id))
 meta[,group:=as.integer(group)-1L]
 
-stopifnot(identical(normalizePath(attr(primary,"input_file"),winslash="/"),INPUT),
+stopifnot(identical(attr(primary,"input_id"),unname(tools::md5sum(INPUT))),
     identical(colnames(ds$counts),attr(primary,"samples")$sample),
     identical(as.character(group),attr(primary,"samples")$group),
     identical(levels(group),c("control","sle")),identical(ds$covariates,c("age","sex")))

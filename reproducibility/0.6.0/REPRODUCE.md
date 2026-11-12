@@ -31,7 +31,7 @@ From the extracted root:
 Rscript --vanilla --encoding=UTF-8 experiments/reproduce.R
 ```
 
-The entry point resolves its root from its own location and loads the supplied current package from `library/`. It recreates each simulated input from its recorded replicate and random stream. Existing completed fit files are skipped. The independent runs use three threads; the six fixed panels use their recorded 16-thread setting.
+The entry point resolves its root from its own location and loads the supplied current package from `library/`. It recreates each simulated input from its recorded replicate and random stream. Completed per-matrix and fixed-panel fit caches are skipped. The package tests and small endpoint comparisons run again. The independent runs use three threads; the six fixed panels use their recorded 16-thread setting.
 
 - `results/final/` contains the 432 current SGCB fits, including the six eligibility-corrected depth matrices.
 - `results/reference_scoring/` contains fixed comparison records for the original score convention and the same-input moment comparator. These are numerical comparison data, not another software installation. All new fits load SGCB 0.6.0.
@@ -59,11 +59,55 @@ Install only SGCB 0.6.0 in this new directory, as above, and run `experiments/re
 
 ## Application analyses and figures
 
-The code archive also supplies the original application and figure programs under `study_data/experiments/`, `study_data/development/` and `study_data/visualization/`. Their software-library paths point to the current `library/` directory. For an application worker, set `SGCB_REVISION_ROOT` to the extracted `study_data` directory and `SGCB_LIBRARY` to the extracted root's `library` directory. The common setup checks SGCB 0.6.0 and the matching current source.
+Figure/table regeneration reads the supplied fitted records. Model refitting is a separate operation using SGCB 0.6.0. The recorded author development build IDs select data files; they do not select an installed package.
 
-Original record identifiers in saved filenames are preserved so existing inputs, comparator outputs and downstream results remain traceable. They are data identifiers, rather than instructions to install a development build. Downstream application programs use the supplied saved records by default; `SGCB_STUDY_RECORD_ID` selects the record identifier when evaluating a new application refit. The original qPCR and protein mean predictions remain identified in the supplied file index.
+The original saved-record default is build ID `0.5.9` for the main application/fixed-panel records and `0.5.7` for the mean-validation records. `SGCB_STUDY_RECORD_ID` and `SGCB_MEAN_RECORD_ID` can select explicitly generated replacement records. The common R setup checks the current 0.6.0 library. Saved primary fits are checked against their `content_md5` in `results/r1_file_index.tsv`; original input content and sample/group correspondence are checked independently of the author's old absolute directory.
 
-`study_data/visualization/30_publication_figures.py`, `study_data/visualization/82_new_publication_figures.py` and `study_data/experiments/29_publication_tables.py` read the supplied study records to regenerate figures and tables. These Python programs use pandas, NumPy, SciPy, matplotlib, seaborn, statsmodels and openpyxl. `visualization/figure_S9.R` renders the independent-study figure. The journal workbook is supplied separately.
+Use one Python environment with pandas, NumPy, SciPy, matplotlib, seaborn, statsmodels, scikit-learn and openpyxl. The application R postprocessing uses data.table, matrixStats, survival, broom and ps; enrichment programs additionally use AnnotationDbi, org.Hs.eg.db, GO.db and reactome.db. SLE conditional-moment sensitivity compiles `study_data/development/57_cv_moment_regression.cpp` and requires a C++ toolchain (Rtools45 on Windows R 4.5.x). Native comparator outputs are already supplied. Separately rerunning comparator programs requires their named dependencies, including sn, MDSeq, gamlss and gamlss.dist; it is not required for saved-result figure regeneration.
+
+From the extracted outer root, the PowerShell setup is:
+
+```powershell
+$studyRoot = (Get-Location).Path
+$env:SGCB_REVISION_ROOT = Join-Path $studyRoot 'study_data'
+$env:SGCB_DATA_ROOT = $env:SGCB_REVISION_ROOT
+$env:SGCB_LIBRARY = Join-Path $studyRoot 'library'
+$env:SGCB_THREADS = '16'
+```
+
+Use the R/Python executables from the environments in which the dependencies were installed. The following commands regenerate the saved null-partition and paired-pseudobulk summaries and the original figures/tables:
+
+```shell
+Rscript --vanilla --encoding=UTF-8 study_data/experiments/08_recount_existing_null_results.R
+Rscript --vanilla --encoding=UTF-8 study_data/experiments/26_pseudobulk_paired_sensitivity.R
+python -X utf8 study_data/visualization/30_publication_figures.py study_data
+python -X utf8 study_data/visualization/82_new_publication_figures.py study_data
+python -X utf8 study_data/experiments/29_publication_tables.py study_data
+```
+
+The three Python programs regenerate the original 14 figures and Tables S1–S27. The independent-study entry supplies Figure S9 and the TSV source data for Tables S28–S35. The formatted journal workbook is supplied separately. The KIRC postprocessing sequence is `20_kirc_patient_validation.R`, `21_external_kirc_validation.R`, `28_kirc_score_sensitivity_and_examples.R`, then `kirc_variability_score.R`; the SLE program is `sle_classical_monocytes_biology.R`. These read the supplied primary fits. Keep the system R temporary directory; the extracted directory and explicit result caches may contain spaces.
+
+### Model refitting
+
+New fits use the current package and are written under new result labels. For example, refit the complete SEQC input with:
+
+```shell
+Rscript --vanilla --encoding=UTF-8 study_data/experiments/45_run_current_method.R study_data/data/seqc_input.rds sgcb_0.6.0_seqc counts
+```
+
+`25_existing_nb_simulation.R` and `103_proteomics_matched_input.R` retain the original NB and protein preprocessing. After producing new fixed-panel fits, `123_evaluate_current_api.R` and `217_cv_matched_families.R` default to the current package's record ID; the latter refits Gamma/lognormal restrictions and reads its GG reference from the selected record. Set `SGCB_STUDY_RECORD_ID` explicitly when re-evaluating an existing saved fit. Preserve each dataset's recorded filtering, normalization, sample order and thread setting.
+
+## Current-release verification
+
+All 12 retained mean-validation inputs were independently replayed with SGCB 0.6.0 using the full original inputs and preprocessing at 16 threads: SEQC, six NB matrices, four protein spike-ins and Kang. All 72 comparisons of effects, standard errors, raw scores, BH-adjusted scores, availability and decisions were exact, covering 89,436 fitted rows. The six qPCR reference/threshold comparisons also agreed. The retained objects contribute their mean-endpoint fields to these benchmarks; their historical DV fields are outside this reuse claim.
+
+The six fixed benchmark designs also have current-release refits matching their saved scores, DV estimates, intervals and decisions. For the retained full-model applications, direct source comparison isolates the changed mean zero-mass scoring and DV constant-positive eligibility paths. Evaluating old/new score expressions on all 31 saved posteriors gave identical scores. All 19 retained normalized inputs had no eligible-size constant positive groups. The large GTEx and disease primary fits were retained, rather than fully rerun in this verification.
+
+An independent source build passed the 15 eligibility assertions and produced the same code/data sections and numerical kernels as the Windows package. The inherited `native_source_id` is an author development label, not a content fingerprint. Saved-record integrity uses the file-index checksums; actual source-build and numeric comparisons are supplied separately.
+
+Independent execution from the supplied data regenerated the application figures and original table workbook, and completed the default independent-study entry with its saved fit caches. All 175 package assertions passed; 18 current endpoint comparisons had zero score, decision and missingness differences. The corresponding new local timings are verification measurements and do not replace the original paper's timings.
+
+Evidence is in `results/retained_mean_replay_summary.tsv`, `retained_mean_all_fields_comparison.tsv`, `seqc_qpcr_replay_comparison.tsv`, `seqc_endpoint_replay_comparison.tsv`, `normal_source_path_checks.tsv`, `normal_score_actual_source_comparison.tsv`, `retained_input_eligibility.tsv`, `application_regeneration_comparison.tsv`, `independent_reproduction_validation.json` and `source_build_binary_comparison.json`. Table S34 identifies the original record IDs and the completed verification for each analysis.
 
 ## Numerical corrections and timing provenance
 

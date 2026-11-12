@@ -14,7 +14,7 @@ library(survival)
 source(file.path(ROOT,"development","00_current_setup.R"),encoding="UTF-8")
 
 primary <- readRDS(file.path(RESULTS,paste0(PREFIX,".rds")))
-stopifnot(identical(attr(primary,"native_source_id"),SOURCE_ID))
+verify_study_record(file.path(RESULTS,paste0(PREFIX,".rds")),attr(primary,"native_source_id"),RECORD_ID)
 res <- as.data.table(primary)
 membership <- fread(file.path(DATA_ROOT, "results", "kirc_discovery_sample_membership.csv"))
 ds <- readRDS(file.path(DATA, "tcga_kirc_cache", "tcga_kirc.rds"))
@@ -115,7 +115,8 @@ fwrite(data.table(training_tumors = sum(train), discovery_patients_excluded = un
                   rho_DV_CPE = cor(composition$DV_only, composition$CPE, method = "spearman"),
                   rho_DV_immune = cor(composition$DV_only, composition$immune_proxy, method = "spearman")),
        file.path(RESULTS, paste0(PREFIX,"_validation_summary.csv")))
-saveRDS(list(run_id=PREFIX,source_id=SOURCE_ID,
+saveRDS(list(run_id=PREFIX,source_id=attr(primary,"native_source_id"),
+    analysis_source_id=SOURCE_ID,analysis_package_version=as.character(packageVersion("SGCB")),
              models = list(de_a, dv_a, both_a, de_c, dv_c, both_c), km = km,
              score_parameters = list(gene_mean = train_mean, gene_sd = train_sd,
                                      weights = weights, score_sd = score_sd, cutoff = score_cut)),

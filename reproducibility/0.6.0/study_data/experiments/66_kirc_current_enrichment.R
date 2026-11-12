@@ -12,8 +12,7 @@ library(data.table)
 source(file.path(ROOT,"development","00_current_setup.R"),encoding="UTF-8")
 
 primary <- readRDS(file.path(ROOT,"results",paste0(PREFIX,".rds")))
-stopifnot(identical(c(attr(primary,"mean_inference_source_id"),
-    attr(primary,"native_source_id"))[1],SOURCE_ID))
+verify_study_record(file.path(ROOT,"results",paste0(PREFIX,".rds")),attr(primary,"native_source_id"),RECORD_ID)
 results <- as.data.table(primary)
 go <- readRDS(file.path(DATA_ROOT,"data","biological_story_annotation_cache","go_term_maps_human.rds"))
 kegg <- readRDS(file.path(DATA_ROOT,"data","biological_story_annotation_cache","kegg_term_maps_hsa.rds"))

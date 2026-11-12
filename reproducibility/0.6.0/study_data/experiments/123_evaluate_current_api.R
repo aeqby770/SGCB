@@ -5,14 +5,15 @@ N0 <- as.integer(ARGS[2])
 N1 <- as.integer(ARGS[3])
 THREADS <- as.integer(Sys.getenv("SGCB_THREADS"))
 ALPHA <- .05
-VERSION <- as.character(utils::packageVersion("SGCB",lib.loc=Sys.getenv("SGCB_LIBRARY",file.path(dirname(ROOT),"library"))))
-PREFIX <- file.path(ROOT,"results",paste0("sgcb_",VERSION,"_",PANEL,"_n",N0,"_",N1))
+RECORD_ID <- Sys.getenv("SGCB_STUDY_RECORD_ID",as.character(utils::packageVersion("SGCB",lib.loc=Sys.getenv("SGCB_LIBRARY",file.path(dirname(ROOT),"library")))))
+PREFIX <- file.path(ROOT,"results",paste0("sgcb_",RECORD_ID,"_",PANEL,"_n",N0,"_",N1))
 Sys.setenv(OMP_NUM_THREADS=THREADS,OPENBLAS_NUM_THREADS=THREADS,MKL_NUM_THREADS=THREADS)
 data.table::setDTthreads(THREADS)
 library(data.table)
 source(file.path(ROOT,"development/00_current_setup.R"),encoding="UTF-8")
 
 res <- readRDS(paste0(PREFIX,".rds"))
+verify_study_record(paste0(PREFIX,".rds"),attr(res,"native_source_id"),RECORD_ID)
 mean_timing <- attr(res,"mean_timing")
 fwrite(data.table(component=names(mean_timing),seconds=unname(mean_timing)),
     paste0(PREFIX,"_mean_timing.csv"))

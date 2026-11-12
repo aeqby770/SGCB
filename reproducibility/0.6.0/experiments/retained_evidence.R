@@ -28,7 +28,7 @@ params <- fread(file.path(r,"zero_calibration_parameters.csv"))
 pop <- unique(params[,.(scenario,group,pi)])
 p <- dcast(pop,scenario~group,value.var="pi"); setnames(p,c("0","1"),c("p0","p1"))
 files <- list.files(r,pattern="^sgcb_0[.]5[.]9_zero_n.*_evaluation_genes[.]csv$",full.names=TRUE)
-old <- rbindlist(lapply(files,fread)); old <- old[endpoint=="DV" & truth_finite==TRUE]
+old <- rbindlist(lapply(files,fread),use.names=TRUE,fill=TRUE); old <- old[endpoint=="DV" & truth_finite==TRUE]
 old[,ci:=is.finite(lower)&is.finite(upper)]
 g <- old[,.(N=.N,alternatives=sum(as.logical(truth)),available=sum(ci),calls=sum(called==TRUE),
     covered=sum(ci & lower<=truth_effect & upper>=truth_effect),covered_conditional=mean((lower<=truth_effect & upper>=truth_effect)[ci]),
@@ -48,5 +48,5 @@ map <- data.table(file=file.path("study_data/results",raw),author_build_id=NA_ch
 map[grepl("/sgcb_0[.]5[.]7_",file),':='(author_build_id="0.5.7",role="retained mean analysis or its downstream evaluation; comparator rows retain original method identity")]
 map[grepl("/sgcb_0[.]5[.]9_",file),':='(author_build_id="0.5.9",role="R1 full or downstream result; external method rows retain their own generating method")]
 map[grepl("/cv_matched_families_0[.]5[.]9_",file),':='(author_build_id="0.5.9",role="matched-kernel restriction of SGCB")]
-map[,bundle:="SGCB 0.6.0 study data"]; map[,software_for_refit:="SGCB 0.6.0"]; fwrite(map,file.path(out,"r1_file_index.tsv"),sep="\t",na="")
+map[,content_md5:=unname(tools::md5sum(file.path(root,file)))]; map[,bundle:="SGCB 0.6.0 study data"]; map[,software_for_refit:="SGCB 0.6.0"]; fwrite(map,file.path(out,"r1_file_index.tsv"),sep="\t",na="")
 print(aucs[threshold==1]); print(resources[grepl("kirc|masld|sle",stage),.(stage,elapsed_seconds,peak_GiB)])

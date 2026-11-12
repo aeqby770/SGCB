@@ -135,7 +135,7 @@ CONFIG = {"paths": {"root": Path(sys.argv[1]),
            'soft': '#D6E4ED'}},
     "hexbin": {"gridsize": 36, "mincnt": 1, "linewidths": 0, "rasterized": False},
     "designs": ["10:10", "10:50", "50:50"], "alpha": .05,
-    "mean_fit_version": "0.5.7",
+    "mean_record_id": os.environ.get("SGCB_MEAN_RECORD_ID", "0.5.7"),
     "distribution": {"bandwidth_adjust": .85, "width": .72, "point_size": .70},
     "kirc_enrichment_BP_terms": 3,
     "kirc_enrichment_terms": ["GO:0008380", "GO:0032543", "GO:0043161", "GO:0005761"], "kirc_enrichment_label_width": 30,
@@ -155,7 +155,7 @@ CONFIG = {"paths": {"root": Path(sys.argv[1]),
 os.environ["OMP_NUM_THREADS"] = str(CONFIG["threads"])
 plt.rcParams.update(CONFIG["plot"])
 ROOT = CONFIG["paths"]["root"]
-VERSION = (ROOT / "software" / "SGCB" / "DESCRIPTION").read_text(encoding="utf-8").split("Version: ",1)[1].splitlines()[0]
+RECORD_ID = os.environ.get("SGCB_STUDY_RECORD_ID", "0.5.9")
 R, F = ROOT / "results", ROOT / "manuscript" / "figures"
 F.mkdir(parents=True, exist_ok=True)
 INK=CONFIG["detail"]["ink"]
@@ -199,7 +199,7 @@ population_family_metadata = population_family_inputs[["fit","family","panel"]]
 # The archived fits below provide historical schema and separate sensitivity records.
 current_inputs = population_family_inputs.loc[
     population_family_inputs.family.eq("GG"), ["panel", "sample_design"]].copy()
-current_inputs["prefix"] = (str(R) + f"/sgcb_{VERSION}_" +
+current_inputs["prefix"] = (str(R) + f"/sgcb_{RECORD_ID}_" +
     current_inputs.panel.map({"Positive": "channel", "Observed zeros": "zero"}) +
     "_n" + current_inputs.sample_design)
 api_metrics = pd.concat(map(pd.read_csv, current_inputs.prefix + "_metrics.csv"),
@@ -250,7 +250,7 @@ final_genes["method"] = "EB-GG-paired-population"
 final_genes["family"] = "GG"
 final_genes["panel"] = final_genes.panel.map({"channel": "Positive", "zero": "Observed zeros"})
 # Kernel-family comparisons use matched fits from the same package version.
-matched_prefixes = (str(R) + f"/cv_matched_families_{VERSION}_" +
+matched_prefixes = (str(R) + f"/cv_matched_families_{RECORD_ID}_" +
     current_inputs.panel.map({"Positive": "channel", "Observed zeros": "zero"}) +
     "_n" + current_inputs.sample_design)
 matched_metadata = current_inputs[["panel", "sample_design"]].copy()
@@ -524,10 +524,10 @@ CHANNEL_COLORS={"DE_only":MEAN_COLOR,"DV_only":DV_COLOR,"DE_and_DV":JOINT_COLOR,
 
 # Figure 4: paired curves at left and method comparison at right.
 # Effect scatter and marginal distributions follow QuantUMS Fig. 1b.
-q = pd.read_csv(R / f"sgcb_{CONFIG['mean_fit_version']}_seqc_qpcr_metrics.csv")
+q = pd.read_csv(R / f"sgcb_{CONFIG['mean_record_id']}_seqc_qpcr_metrics.csv")
 q = q.loc[q.reference_estimand.eq("geometric_mean")]
 q = q.loc[pd.to_numeric(q.qpcr_abs_log2FC_threshold, errors="coerce").eq(1)].sort_values("AUC", ascending=False)
-scores = pd.read_csv(R / f"sgcb_{CONFIG['mean_fit_version']}_seqc_qpcr_gene_scores.csv")
+scores = pd.read_csv(R / f"sgcb_{CONFIG['mean_record_id']}_seqc_qpcr_gene_scores.csv")
 own = scores.loc[scores.method.eq("SGCB")]
 fig = plt.figure(figsize=(7.25, 5.0), layout="constrained")
 grid = fig.add_gridspec(2, 2, width_ratios=[1, 1], height_ratios=[1.35, 1])
@@ -601,15 +601,15 @@ NORMAL,TUMOR,GREY=FIG_STYLE["colors"]["normal"],FIG_STYLE["colors"]["tumor"],FIG
 CHANNEL_COLORS={"DE_only":MEAN_COLOR,"DV_only":DV_COLOR,"DE_and_DV":JOINT_COLOR,"neither":FIG_STYLE["colors"]["other"]}
 
 # Figure 5: cohort, functional context and complete gene distributions.
-kirc = pd.read_csv(R / f"sgcb_{VERSION}_kirc_genes.csv")
-stability = pd.read_csv(R / f"sgcb_{VERSION}_kirc_distribution_stability.csv")
-examples = pd.read_csv(R / f"sgcb_{VERSION}_kirc_distribution_examples.csv")
-features = pd.read_csv(R / f"sgcb_{VERSION}_kirc_example_features.csv").set_index("gene_id")
-cov = pd.read_csv(R / f"sgcb_{VERSION}_kirc_covariate_genes.csv")
-stability_summary = pd.read_csv(R / f"sgcb_{VERSION}_kirc_distribution_stability_summary.csv").set_index("channel")
+kirc = pd.read_csv(R / f"sgcb_{RECORD_ID}_kirc_genes.csv")
+stability = pd.read_csv(R / f"sgcb_{RECORD_ID}_kirc_distribution_stability.csv")
+examples = pd.read_csv(R / f"sgcb_{RECORD_ID}_kirc_distribution_examples.csv")
+features = pd.read_csv(R / f"sgcb_{RECORD_ID}_kirc_example_features.csv").set_index("gene_id")
+cov = pd.read_csv(R / f"sgcb_{RECORD_ID}_kirc_covariate_genes.csv")
+stability_summary = pd.read_csv(R / f"sgcb_{RECORD_ID}_kirc_distribution_stability_summary.csv").set_index("channel")
 dv_stability = stability_summary.loc["DV_only"]
-enrich = pd.read_csv(R / f"sgcb_{VERSION}_kirc_enrichment.csv")
-esum = pd.read_csv(R / f"sgcb_{VERSION}_kirc_enrichment_summary.csv")
+enrich = pd.read_csv(R / f"sgcb_{RECORD_ID}_kirc_enrichment.csv")
+esum = pd.read_csv(R / f"sgcb_{RECORD_ID}_kirc_enrichment_summary.csv")
 counts = kirc.channel.value_counts().reindex(CHANNELS)
 fig = plt.figure(figsize=(7.25, 7.1), layout="constrained")
 outer = fig.add_gridspec(3,2,width_ratios=[1,1.38],height_ratios=[.55,1.10,1])
@@ -729,7 +729,7 @@ ax3.text(.03, .96, CHANNEL_LABELS[features.loc["GPX3", "channel"]], transform=ax
     color=INK, fontsize=7.5, va="top")
 ax = fig.add_subplot(right[2])
 cx = cov.set_index("gene_id").loc[["SF3B1", "FTL", "GPX3"]]
-cov_summary = pd.read_csv(R / f"sgcb_{VERSION}_kirc_covariate_summary.csv").iloc[0]
+cov_summary = pd.read_csv(R / f"sgcb_{RECORD_ID}_kirc_covariate_summary.csv").iloc[0]
 cov_critical = t.ppf(.975, cov_summary.n_donors - 1)
 ax.errorbar(cx.unadjusted_log2_cv2_ratio, np.arange(3) - .13, xerr=cov_critical * cx.unadjusted_se_log2_cv2,
             fmt="o", color=MEAN_COLOR,capsize=CONFIG["detail"]["interval_caps"],
@@ -896,8 +896,8 @@ NORMAL=FIG_STYLE["colors"]["both"]
 fig = plt.figure(figsize=(7.8, 6.3), layout="constrained")
 grid = fig.add_gridspec(2, 2, height_ratios=[1, 1.1])
 ax = fig.add_subplot(grid[0, 0])
-tcga = pd.read_csv(R / f"sgcb_{VERSION}_kirc_heldout_survival.csv").query("model == 'clinical'").set_index("term").loc[CHANNELS[:3]]
-ext = pd.read_csv(R / f"sgcb_{VERSION}_kirc_external_survival.csv").query("model == 'clinical'").set_index("term").loc[CHANNELS[:3]]
+tcga = pd.read_csv(R / f"sgcb_{RECORD_ID}_kirc_heldout_survival.csv").query("model == 'clinical'").set_index("term").loc[CHANNELS[:3]]
+ext = pd.read_csv(R / f"sgcb_{RECORD_ID}_kirc_external_survival.csv").query("model == 'clinical'").set_index("term").loc[CHANNELS[:3]]
 yy = np.arange(3)
 ax.errorbar(tcga.estimate, yy - .12, xerr=np.vstack([tcga.estimate - tcga["conf.low"], tcga["conf.high"] - tcga.estimate]),
             fmt="o", color=NORMAL,capsize=CONFIG["detail"]["interval_caps"],elinewidth=CONFIG["detail"]["interval_width"],mec="white",mew=.5,label="TCGA held-out (385)")
@@ -911,8 +911,8 @@ ax.set(yticks=yy, yticklabels=["DE only", "DV only", "Both"], xlabel="Adjusted H
 cohort_handles,cohort_labels=ax.get_legend_handles_labels()
 ax.grid(axis="x")
 ax = fig.add_subplot(grid[0, 1])
-alt = pd.read_csv(R / f"sgcb_{VERSION}_kirc_alternative_scores_survival.csv")
-alte = pd.read_csv(R / f"sgcb_{VERSION}_kirc_external_alternative_scores_survival.csv")
+alt = pd.read_csv(R / f"sgcb_{RECORD_ID}_kirc_alternative_scores_survival.csv")
+alte = pd.read_csv(R / f"sgcb_{RECORD_ID}_kirc_external_alternative_scores_survival.csv")
 ax.errorbar(alt.estimate, np.arange(2) - .1, xerr=np.vstack([alt.estimate - alt["conf.low"], alt["conf.high"] - alt.estimate]),
             fmt="o", color=NORMAL,capsize=CONFIG["detail"]["interval_caps"],elinewidth=CONFIG["detail"]["interval_width"],mec="white",mew=.5,label="TCGA held-out")
 ax.errorbar(alte.estimate, np.arange(2) + .1, xerr=np.vstack([alte.estimate - alte["conf.low"], alte["conf.high"] - alte.estimate]),
@@ -922,8 +922,8 @@ ax.set(yticks=[0, 1], yticklabels=["Direction-weighted\nmean", "Absolute\ndeviat
        xlabel="Adjusted HR per score SD (95% CI)", title="$\\mathbf{b}$  Fixed score sensitivities")
 ax.grid(axis="x")
 ax = fig.add_subplot(grid[1, :])
-km = pd.read_csv(R / f"sgcb_{VERSION}_kirc_heldout_KM.csv")
-km_test = pd.read_csv(R / f"sgcb_{VERSION}_kirc_heldout_KM_test.csv").iloc[0]
+km = pd.read_csv(R / f"sgcb_{RECORD_ID}_kirc_heldout_KM.csv")
+km_test = pd.read_csv(R / f"sgcb_{RECORD_ID}_kirc_heldout_KM_test.csv").iloc[0]
 lo, hi = km.loc[km.strata.eq("DV_high=Low")], km.loc[km.strata.eq("DV_high=High")]
 ax.step(np.r_[0, lo.time / 365.25], np.r_[1, lo.estimate], where="post", color=NORMAL, label=f"Low ({int(km_test.n_low)})")
 ax.step(np.r_[0, hi.time / 365.25], np.r_[1, hi.estimate], where="post", color=TUMOR, label=f"High ({int(km_test.n_high)})")
@@ -946,10 +946,10 @@ NORMAL,TUMOR,GREY=FIG_STYLE["colors"]["normal"],FIG_STYLE["colors"]["tumor"],FIG
 CHANNEL_COLORS={"DE_only":MEAN_COLOR,"DV_only":DV_COLOR,"DE_and_DV":JOINT_COLOR,"neither":FIG_STYLE["colors"]["other"]}
 
 # Figure S3 uses the three current disease applications and their fixed covariate models.
-sle_models = pd.read_csv(R / f"sgcb_{VERSION}_sle_classical_monocytes_2021_covariate_summary.csv").set_index("model")
-liver_models = pd.read_csv(R / f"sgcb_{VERSION}_masld_liver_2023_covariate_summary.csv").set_index("model")
-kirc_model = pd.read_csv(R / f"sgcb_{VERSION}_kirc_covariate_summary.csv").iloc[0]
-kirc_covariates = pd.read_csv(R / f"sgcb_{VERSION}_kirc_covariate_genes.csv")
+sle_models = pd.read_csv(R / f"sgcb_{RECORD_ID}_sle_classical_monocytes_2021_covariate_summary.csv").set_index("model")
+liver_models = pd.read_csv(R / f"sgcb_{RECORD_ID}_masld_liver_2023_covariate_summary.csv").set_index("model")
+kirc_model = pd.read_csv(R / f"sgcb_{RECORD_ID}_kirc_covariate_summary.csv").iloc[0]
+kirc_covariates = pd.read_csv(R / f"sgcb_{RECORD_ID}_kirc_covariate_genes.csv")
 kirc_selected = kirc_covariates.loc[kirc_covariates.population_DV &
     np.isfinite(kirc_covariates.primary_GG_effect) &
     np.isfinite(kirc_covariates.adjusted_log2_cv2_ratio) &
@@ -1101,7 +1101,7 @@ NORMAL,TUMOR,GREY=FIG_STYLE["colors"]["normal"],FIG_STYLE["colors"]["tumor"],FIG
 CHANNEL_COLORS={"DE_only":MEAN_COLOR,"DV_only":DV_COLOR,"DE_and_DV":JOINT_COLOR,"neither":FIG_STYLE["colors"]["other"]}
 
 # Figure S5 reports the final public API, fixed-panel scaling and actual memory.
-resource_labels = pd.Index("sgcb_"+VERSION+"_"+pd.Series(CONFIG["resource_datasets"]),name="result_label")
+resource_labels = pd.Index("sgcb_"+RECORD_ID+"_"+pd.Series(CONFIG["resource_datasets"]),name="result_label")
 resources = pd.concat(map(pd.read_csv,str(R)+"/"+resource_labels+"_summary.csv"),
     keys=resource_labels,names=["result_label","record"]).reset_index().drop(columns="record")
 resources = resources.rename(columns={"elapsed_seconds":"api_seconds","cpu_seconds":"api_cpu_seconds",
@@ -1113,7 +1113,7 @@ resources = resources.merge(process_resources[["stage","elapsed_seconds","peak_w
     "threads_per_process","execution_outcome"]].rename(columns={"stage":"result_label",
     "elapsed_seconds":"process_seconds","peak_working_set_bytes":"process_peak_working_set_bytes"}),
     on="result_label",how="left",validate="one_to_one")
-resources["dataset"] = resources.result_label.str.removeprefix("sgcb_"+VERSION+"_")
+resources["dataset"] = resources.result_label.str.removeprefix("sgcb_"+RECORD_ID+"_")
 resources["api_peak_GiB"] = resources.api_peak_working_set_bytes/1024**3
 resources["process_peak_GiB"] = resources.process_peak_working_set_bytes/1024**3
 resources["api_minutes"] = resources.api_seconds/60
@@ -1165,7 +1165,7 @@ NORMAL,TUMOR,GREY=FIG_STYLE["colors"]["normal"],FIG_STYLE["colors"]["tumor"],FIG
 CHANNEL_COLORS={"DE_only":MEAN_COLOR,"DV_only":DV_COLOR,"DE_and_DV":JOINT_COLOR,"neither":FIG_STYLE["colors"]["other"]}
 
 # Figure S7 combines the current fixed null splits and the six matched family restrictions.
-null_results = pd.read_csv(R / f"sgcb_{VERSION}_readcount_null_metrics.csv")
+null_results = pd.read_csv(R / f"sgcb_{RECORD_ID}_readcount_null_metrics.csv")
 null_de = null_results.loc[null_results.target.eq("Mean expression")].sort_values("split")
 null_dv = null_results.loc[null_results.target.ne("Mean expression")].sort_values("split")
 shape = population_family_scenarios.loc[population_family_scenarios.panel.eq("Positive") &

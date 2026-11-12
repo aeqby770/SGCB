@@ -1,7 +1,7 @@
 ROOT <- normalizePath(Sys.getenv("SGCB_REVISION_ROOT"), winslash = "/", mustWork = TRUE)
 INPUT <- file.path(file.path(ROOT, "data", "original_inputs"), "benchmark_v2", "01_bulk_rnaseq", "data", "bulk",
                     "05_pseudobulk", "kang18_pseudobulk.rds")
-THREADS <- parallel::detectCores()
+THREADS <- as.integer(Sys.getenv("SGCB_THREADS",as.character(parallel::detectCores())))
 Sys.setenv(OMP_NUM_THREADS = THREADS, OPENBLAS_NUM_THREADS = THREADS, MKL_NUM_THREADS = THREADS)
 data.table::setDTthreads(THREADS)
 .libPaths(c(Sys.getenv("SGCB_LIBRARY",file.path(dirname(ROOT),"library")),.libPaths()))
@@ -9,10 +9,11 @@ library(SGCB)
 library(data.table)
 source(file.path(ROOT,"development","00_current_setup.R"),encoding="UTF-8")
 ds <- readRDS(INPUT)
-VERSION <- as.character(packageVersion("SGCB"))
-PREFIX <- paste0("sgcb_",VERSION,"_pseudobulk_kang18")
+RECORD_ID <- Sys.getenv("SGCB_STUDY_RECORD_ID","0.5.7")
+PREFIX <- paste0("sgcb_",RECORD_ID,"_pseudobulk_kang18")
 res <- readRDS(file.path(ROOT,"results",paste0(PREFIX,".rds")))
-stopifnot(identical(attr(res,"native_source_id"),SOURCE_ID),
+verify_study_record(file.path(ROOT,"results",paste0(PREFIX,".rds")),attr(res,"native_source_id"),RECORD_ID)
+stopifnot(
     identical(colnames(ds$counts),attr(res,"samples")$sample),
     identical(as.character(ds$group),as.character(attr(res,"samples")$group)))
 counts <- ds$counts[res$gene_id, , drop = FALSE]
