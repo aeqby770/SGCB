@@ -1,14 +1,5 @@
-# Analysis reproduction
+# Reproduce SGCB 0.6.0
 
-The complete SGCB 0.5.9 analytical reproduction archive is available from the
-[GitHub release](https://github.com/aeqby770/SGCB/releases/tag/v0.5.9):
-[SGCB_0.5.9_reproducibility.zip](https://github.com/aeqby770/SGCB/releases/download/v0.5.9/SGCB_0.5.9_reproducibility.zip).
-It includes fixed input matrices, comparator outputs, saved fits and reported
-numerical results. Extract it and start with `REPRODUCE.md`.
+Use the [current reproduction instructions](0.6.0/REPRODUCE.md) and the code in [0.6.0/](0.6.0/).
 
-- `experiments/`: benchmark evaluation, null controls and biological analyses.
-- `visualization/`: figures generated from the saved results.
-- `development/`: package setup and conditional CV-squared sensitivity.
-
-Install the R package using the repository's main README. The installed example
-works without the full reproduction download.
+Download the current packages, reproduction code and study data from the [SGCB 0.6.0 release](https://github.com/aeqby770/SGCB/releases/tag/v0.6.0). All documented installation and refitting use SGCB 0.6.0.
